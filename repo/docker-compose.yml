@@ -1,0 +1,157 @@
+version: "3.9"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # MySQL 8.0
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-harborops}
+      MYSQL_USER: ${DB_USER:-harborops}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-harborops}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis (Celery broker)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # No host-port binding — only reachable from other containers
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Django application server
+  # ---------------------------------------------------------------------------
+  django:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: harborops.settings
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost 127.0.0.1}
+      DB_NAME: ${DB_NAME:-harborops}
+      DB_USER: ${DB_USER:-harborops}
+      DB_PASSWORD: ${DB_PASSWORD:-harborops}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+      # Dev-only encryption key — override in production
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw=}
+      UPLOAD_ROOT: /var/harborops/uploads/
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - uploads:/var/harborops/uploads/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    working_dir: /app
+
+  # ---------------------------------------------------------------------------
+  # Celery worker
+  # ---------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A harborops worker --loglevel=info --concurrency=2
+    environment:
+      DJANGO_SETTINGS_MODULE: harborops.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
+      DB_NAME: ${DB_NAME:-harborops}
+      DB_USER: ${DB_USER:-harborops}
+      DB_PASSWORD: ${DB_PASSWORD:-harborops}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw=}
+    volumes:
+      - ./backend:/app
+      - uploads:/var/harborops/uploads/
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    working_dir: /app
+
+  # ---------------------------------------------------------------------------
+  # Celery beat scheduler
+  # ---------------------------------------------------------------------------
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile
+    restart: unless-stopped
+    entrypoint: []
+    command: celery -A harborops beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      DJANGO_SETTINGS_MODULE: harborops.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
+      DB_NAME: ${DB_NAME:-harborops}
+      DB_USER: ${DB_USER:-harborops}
+      DB_PASSWORD: ${DB_PASSWORD:-harborops}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    working_dir: /app
+
+  # ---------------------------------------------------------------------------
+  # React frontend (Vite dev server)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules        # keep container node_modules isolated
+    environment:
+      # VITE_API_TARGET is read by vite.config.ts at dev-server startup to set
+      # the proxy target. Inside Docker, Django is reachable via its service name.
+      VITE_API_TARGET: http://django:8000
+    depends_on:
+      - django
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads:
