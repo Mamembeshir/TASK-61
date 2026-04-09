@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
+      "autoPort": true,
+      "cwd": "/Users/muhammed/projects/eaglepoint/w2t61/repo/frontend",
+      "env": {
+        "VITE_API_TARGET": "http://localhost:8000"
+      }
+    }
+  ]
+}

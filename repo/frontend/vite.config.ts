@@ -15,7 +15,7 @@ export default defineConfig({
   },
   server: {
     host: "0.0.0.0",   // bind on all interfaces so Docker port mapping works
-    port: 5173,
+    port: parseInt(process.env.PORT ?? "5173", 10),
     proxy: {
       // Proxy API calls to Django
       "/api": {
