@@ -27,7 +27,7 @@ from django.utils.dateparse import parse_datetime
 
 from core.exceptions  import ConflictError, UnprocessableEntity
 from core.models      import AuditLog
-from core.pagination  import CursorPagination
+from core.pagination  import CursorPagination, paginate_list
 from assets.models       import Asset, AssetClassification, AssetVersion
 from assets.permissions  import IsNotCourier
 from assets.serializers  import (
@@ -300,7 +300,7 @@ class AssetTimelineView(APIView):
             .select_related("changed_by")
             .order_by("-version_number")
         )
-        return Response(AssetVersionSerializer(versions, many=True).data)
+        return paginate_list(request, versions, AssetVersionSerializer, ordering="-version_number")
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +358,7 @@ class ClassificationListCreateView(APIView):
             .prefetch_related("children__children")
             .order_by("code")
         )
-        return Response(AssetClassificationSerializer(roots, many=True).data)
+        return paginate_list(request, roots, AssetClassificationSerializer, ordering="code")
 
     def post(self, request):
         if request.user.role != "ADMIN":

@@ -232,7 +232,7 @@ class TestWebhookDeliveryTask:
         url = f"{WEBHOOKS_BASE}{webhook_endpoint.pk}/deliveries/"
         resp = admin_client.get(url)
         assert_status(resp, 200)
-        ids = [d["id"] for d in resp.json()]
+        ids = [d["id"] for d in resp.json()["results"]]
         assert str(delivery.pk) in ids
 
 

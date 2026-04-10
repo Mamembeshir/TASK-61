@@ -382,7 +382,7 @@ class AllergenListView(APIView):
 
     def get(self, request):
         allergens = Allergen.objects.all().order_by("code")
-        return Response(AllergenSerializer(allergens, many=True).data)
+        return paginate_list(request, allergens, AllergenSerializer, ordering="code")
 
 
 # ---------------------------------------------------------------------------
@@ -430,12 +430,16 @@ class DishListCreateView(APIView):
             Prefetch("versions", queryset=active_qs, to_attr="_prefetched_active")
         )
 
-        results = list(qs.order_by("-created_at"))
-        for dish in results:
-            prefetched = getattr(dish, "_prefetched_active", [])
-            dish._active_version = prefetched[0] if prefetched else None
+        def _annotate(items):
+            for dish in items:
+                prefetched = getattr(dish, "_prefetched_active", [])
+                dish._active_version = prefetched[0] if prefetched else None
+            return items
 
-        return Response(DishListSerializer(results, many=True).data)
+        return paginate_list(
+            request, qs.order_by("-created_at"), DishListSerializer,
+            ordering="-created_at", post_slice_hook=_annotate,
+        )
 
     @transaction.atomic
     def post(self, request):
@@ -504,7 +508,7 @@ class DishVersionListCreateView(APIView):
         versions = dish.versions.prefetch_related(
             "dish_allergens__allergen", "portions", "addons__addon_allergens__allergen"
         ).order_by("-version_number")
-        return Response(DishVersionReadSerializer(versions, many=True).data)
+        return paginate_list(request, versions, DishVersionReadSerializer, ordering="-version_number")
 
     @transaction.atomic
     def post(self, request, pk):
@@ -700,8 +704,8 @@ class MenuVersionListCreateView(APIView):
         versions = menu.versions.prefetch_related(
             "groups__items__dish_version",
             "site_releases",
-        ).all()
-        return Response(MenuVersionReadSerializer(versions, many=True).data)
+        ).order_by("-version_number")
+        return paginate_list(request, versions, MenuVersionReadSerializer, ordering="-version_number")
 
     def post(self, request, pk):
         menu = get_object_or_404(Menu, pk=pk, tenant=request.user.tenant)

@@ -852,7 +852,7 @@ class TestMyTasksView:
         )
         resp = staff_client.get(self.TASKS_MINE)
         assert_status(resp, 200)
-        ids = [t["id"] for t in resp.json()]
+        ids = [t["id"] for t in resp.json()["results"]]
         assert task_id in ids
 
     def test_filter_by_status_todo_includes_task(
@@ -863,7 +863,7 @@ class TestMyTasksView:
         )
         resp = staff_client.get(self.TASKS_MINE, {"status": "TODO"})
         assert_status(resp, 200)
-        ids = [t["id"] for t in resp.json()]
+        ids = [t["id"] for t in resp.json()["results"]]
         assert task_id in ids
 
     def test_filter_by_status_done_excludes_todo_task(
@@ -874,7 +874,7 @@ class TestMyTasksView:
         )
         resp = staff_client.get(self.TASKS_MINE, {"status": "DONE"})
         assert_status(resp, 200)
-        ids = [t["id"] for t in resp.json()]
+        ids = [t["id"] for t in resp.json()["results"]]
         assert task_id not in ids
 
     def test_admin_task_not_visible_in_staff_mine(
@@ -891,5 +891,5 @@ class TestMyTasksView:
 
         resp = staff_client.get(self.TASKS_MINE)
         assert_status(resp, 200)
-        ids = [t["id"] for t in resp.json()]
+        ids = [t["id"] for t in resp.json()["results"]]
         assert admin_task_id not in ids

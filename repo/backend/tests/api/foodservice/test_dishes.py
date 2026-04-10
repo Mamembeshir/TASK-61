@@ -306,7 +306,7 @@ class TestPortionsAndAddons:
         # Use versions endpoint to verify
         v_resp = admin_client.get(f"{DISHES_URL}{resp.json()['id']}/versions/")
         assert_status(v_resp, 200)
-        v = v_resp.json()[0]
+        v = v_resp.json()["results"][0]
         assert len(v["portions"]) == 1
         assert v["portions"][0]["portion_label"] == "Regular"
         assert len(v["addons"]) == 1
@@ -396,14 +396,14 @@ class TestAllergenFiltering:
         # GET with allergen_exclude=PEANUTS — should return only dish A
         list_resp = admin_client.get(f"{DISHES_URL}?allergen_exclude=PEANUTS")
         assert_status(list_resp, 200)
-        ids = [d["id"] for d in list_resp.json()]
+        ids = [d["id"] for d in list_resp.json()["results"]]
         assert a_id in ids
         assert b_id not in ids
 
     def test_list_all_allergens(self, admin_client, assert_status):
         resp = admin_client.get(ALLERGENS_URL)
         assert_status(resp, 200)
-        codes = {a["code"] for a in resp.json()}
+        codes = {a["code"] for a in resp.json()["results"]}
         assert "MILK" in codes
         assert "NONE" in codes
-        assert len(resp.json()) == 15
+        assert len(resp.json()["results"]) == 15

@@ -117,7 +117,7 @@ class TestFullLifecycle:
         # Get the dish version ID from list (created inline with draft status, need to activate)
         dvlist_resp = admin_client.get(f"{FOODSERVICE}dishes/{dish_id}/versions/")
         assert_status(dvlist_resp, 200)
-        dv_id = dvlist_resp.data[0]["id"]
+        dv_id = dvlist_resp.data["results"][0]["id"]
         assert_status(admin_client.post(f"{FOODSERVICE}dishes/{dish_id}/versions/{dv_id}/activate/"), 200)
 
         # --- Menu (build via ORM then publish via API) ---
@@ -246,7 +246,7 @@ class TestCourierFlow:
         # Courier lists tasks
         list_resp = courier_client.get(f"{COURIER_BASE}tasks/")
         assert_status(list_resp, 200)
-        ids = [t["id"] for t in list_resp.data]
+        ids = [t["id"] for t in list_resp.data["results"]]
         assert str(task.pk) in ids
 
         # Courier confirms
@@ -279,7 +279,7 @@ class TestCourierFlow:
         list_resp = courier_client.get(f"{COURIER_BASE}tasks/")
         assert_status(list_resp, 200)
         # Should be empty — no delivery_type
-        assert list_resp.data == []
+        assert list_resp.data["results"] == []
 
 
 # ---------------------------------------------------------------------------

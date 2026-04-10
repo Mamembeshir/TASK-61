@@ -308,7 +308,7 @@ class TestTimeline:
         )
 
         resp     = admin_client.get(timeline_url(asset.pk))
-        versions = resp.data
+        versions = resp.data["results"]
         assert_status(resp, 200)
         assert len(versions) == 2
         assert versions[0]["version_number"] == 2
@@ -426,6 +426,6 @@ class TestClassifications:
         resp = admin_client.get(CLASSIFICATIONS_URL)
         assert_status(resp, 200)
 
-        roots = [c for c in resp.data if c["code"] == "ROOT"]
+        roots = [c for c in resp.data["results"] if c["code"] == "ROOT"]
         assert len(roots) == 1
         assert any(c["code"] == "ROOT.A" for c in roots[0]["children"])

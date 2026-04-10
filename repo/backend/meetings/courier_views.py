@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404
 
 from core.exceptions import UnprocessableEntity
 from core.models import AuditLog
+from core.pagination import paginate_list
 from meetings.models import Task
 from meetings.serializers import CourierTaskSerializer
 
@@ -57,7 +58,7 @@ class CourierTaskListView(APIView):
             .order_by("-created_at")
         )
 
-        return Response(CourierTaskSerializer(qs, many=True).data)
+        return paginate_list(request, qs, CourierTaskSerializer, ordering="-created_at")
 
 
 # ---------------------------------------------------------------------------

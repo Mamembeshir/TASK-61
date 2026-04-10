@@ -234,8 +234,8 @@ class WebhookEndpointListCreateView(APIView):
 
     def get(self, request):
         _require_admin(request)
-        endpoints = WebhookEndpoint.objects.filter(tenant=request.user.tenant)
-        return Response(WebhookEndpointSerializer(endpoints, many=True).data)
+        endpoints = WebhookEndpoint.objects.filter(tenant=request.user.tenant).order_by("-created_at")
+        return paginate_list(request, endpoints, WebhookEndpointSerializer, ordering="-created_at")
 
     @transaction.atomic
     def post(self, request):
@@ -272,9 +272,9 @@ class WebhookDeliveryListView(APIView):
         deliveries = (
             WebhookDeliveryAttempt.objects
             .filter(endpoint=endpoint)
-            .order_by("-created_at")[:50]
+            .order_by("-created_at")
         )
-        return Response(WebhookDeliverySerializer(deliveries, many=True).data)
+        return paginate_list(request, deliveries, WebhookDeliverySerializer, ordering="-created_at")
 
 
 class WebhookEndpointDetailView(APIView):

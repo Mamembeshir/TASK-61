@@ -561,7 +561,7 @@ class ResolutionListCreateView(APIView):
     def get(self, request, pk):
         meeting = _get_meeting(request, pk)
         resolutions = meeting.resolutions.prefetch_related("tasks__assignee").order_by("created_at")
-        return Response(ResolutionSerializer(resolutions, many=True).data)
+        return paginate_list(request, resolutions, ResolutionSerializer, ordering="created_at")
 
     @transaction.atomic
     def post(self, request, pk):
@@ -777,4 +777,4 @@ class MyTasksView(APIView):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
-        return Response(TaskSerializer(qs, many=True).data)
+        return paginate_list(request, qs, TaskSerializer, ordering="-created_at")
