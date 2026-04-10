@@ -655,6 +655,26 @@ class TestAttachmentValidation:
         )
         assert_status(resp, 422)
 
+    def test_safe_filename_stored_as_uuid(
+        self, admin_client, meeting, assert_status
+    ):
+        """The server-side filename must never mirror the client-supplied name."""
+        resp = admin_client.post(
+            f"{BASE}{meeting.pk}/agenda/",
+            data={
+                "title": "Named upload",
+                "file":  self._make_file("my_secret_doc.pdf", b"%PDF-1.4"),
+            },
+            format="multipart",
+        )
+        assert_status(resp, 201)
+        stored_path = resp.json()["attachment_path"]
+        # The original client filename must not appear in the stored path
+        assert "my_secret_doc" not in stored_path
+        # Stored filename should be a hex UUID (32 hex chars + extension)
+        import re
+        assert re.search(r"[0-9a-f]{32}\.pdf$", stored_path)
+
 
 # ---------------------------------------------------------------------------
 # 9. Courier access restrictions

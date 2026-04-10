@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Shield, Eye, EyeOff } from "lucide-react";
-import { colors, radius, font, transition } from "@/styles/tokens";
+import { colors, radius, font, transition, gradients } from "@/styles/tokens";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -52,7 +52,7 @@ export default function LoginPage() {
     return {
       display: "block",
       width: "100%",
-      padding: "10px 14px",
+      padding: "11px 14px",
       border: `1.5px solid ${focused ? colors.primary : colors.border}`,
       borderRadius: radius.md,
       fontSize: font.size.base,
@@ -60,8 +60,12 @@ export default function LoginPage() {
       background: colors.surface,
       outline: "none",
       boxSizing: "border-box" as const,
-      transition: `border-color ${transition.base}`,
-      boxShadow: focused ? `0 0 0 3px rgba(99,102,241,0.12)` : "none",
+      fontFamily: font.family,
+      lineHeight: 1.5,
+      transition: `border-color ${transition.base}, box-shadow ${transition.base}, background ${transition.base}`,
+      boxShadow: focused
+        ? `0 0 0 4px rgba(79,70,229,0.14), 0 1px 2px rgba(15,23,42,0.04)`
+        : `0 1px 2px rgba(15,23,42,0.04)`,
     };
   }
 
@@ -74,71 +78,105 @@ export default function LoginPage() {
       {/* Left panel — branding */}
       <div style={{
         display: "none",
-        flex: "0 0 420px",
-        background: colors.sidebarBg,
+        flex: "0 0 460px",
+        background: gradients.heroMesh,
         flexDirection: "column",
         justifyContent: "center",
-        padding: "3rem",
+        padding: "3.5rem",
         position: "relative",
         overflow: "hidden",
       }}
         className="auth-panel"
       >
-        {/* Background decoration */}
+        {/* Background decoration — large soft glow blobs */}
         <div style={{
           position: "absolute",
-          top: "-80px", right: "-80px",
-          width: 320, height: 320,
+          top: "-140px", right: "-120px",
+          width: 380, height: 380,
           borderRadius: "50%",
-          background: "rgba(99,102,241,0.12)",
+          background: "radial-gradient(circle, rgba(124,58,237,0.35) 0%, transparent 70%)",
+          filter: "blur(6px)",
         }} />
         <div style={{
           position: "absolute",
-          bottom: "-60px", left: "-60px",
-          width: 240, height: 240,
+          bottom: "-120px", left: "-100px",
+          width: 320, height: 320,
           borderRadius: "50%",
-          background: "rgba(99,102,241,0.08)",
+          background: "radial-gradient(circle, rgba(99,102,241,0.28) 0%, transparent 70%)",
+          filter: "blur(6px)",
+        }} />
+        {/* Subtle dotted grid overlay */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)`,
+          backgroundSize: "22px 22px",
+          pointerEvents: "none",
         }} />
 
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "3rem" }}>
             <div style={{
-              width: 40, height: 40, borderRadius: radius.md,
-              background: colors.primary,
+              width: 44, height: 44, borderRadius: radius.lg,
+              background: gradients.primary,
               display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 8px 20px -4px rgba(79,70,229,0.55), inset 0 1px 0 rgba(255,255,255,0.3)",
             }}>
-              <Shield size={20} color="#fff" />
+              <Shield size={22} color="#fff" />
             </div>
-            <span style={{ fontSize: font.size.xxl, fontWeight: font.weight.bold, color: "#fff" }}>
+            <span style={{
+              fontSize: font.size.xxl,
+              fontWeight: font.weight.bold,
+              color: "#fff",
+              letterSpacing: font.tracking.tight,
+            }}>
               HarborOps
             </span>
           </div>
 
           <h2 style={{
-            fontSize: "2rem",
+            fontSize: "2.25rem",
             fontWeight: font.weight.bold,
             color: "#fff",
-            lineHeight: 1.3,
-            marginBottom: "1rem",
+            lineHeight: 1.2,
+            marginBottom: "1.1rem",
+            letterSpacing: font.tracking.tighter,
           }}>
-            Operations made simple
+            Operations,<br/>elegantly unified.
           </h2>
-          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: font.size.base, lineHeight: 1.7 }}>
-            Manage assets, menus, meetings, and couriers — all from one unified dashboard.
+          <p style={{
+            color: "rgba(226,232,240,0.7)",
+            fontSize: font.size.md,
+            lineHeight: 1.7,
+            maxWidth: 360,
+          }}>
+            Assets, kitchens, meetings, and couriers — one calm, modern workspace for teams that take their craft seriously.
           </p>
 
-          <div style={{ marginTop: "3rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div style={{ marginTop: "3rem", display: "flex", flexDirection: "column", gap: "0.95rem" }}>
             {[
-              "Role-based access control",
+              "Role-based access & audit trail",
               "Real-time alerts & webhooks",
               "Versioned menus & recipes",
+              "Multi-tenant by design",
             ].map(f => (
               <div key={f} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <div style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  background: colors.primary, flexShrink: 0,
-                }} />
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: font.size.sm }}>
+                  width: 18, height: 18, borderRadius: "50%",
+                  background: "rgba(129,140,248,0.18)",
+                  border: "1px solid rgba(129,140,248,0.4)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  <div style={{
+                    width: 5, height: 5, borderRadius: "50%",
+                    background: "#A5B4FC",
+                  }} />
+                </div>
+                <span style={{
+                  color: "rgba(226,232,240,0.78)",
+                  fontSize: font.size.sm,
+                  fontWeight: font.weight.medium,
+                }}>
                   {f}
                 </span>
               </div>
@@ -154,35 +192,48 @@ export default function LoginPage() {
         alignItems: "center",
         justifyContent: "center",
         padding: "2rem",
+        position: "relative",
       }}>
         <div style={{
           width: "100%",
-          maxWidth: 400,
+          maxWidth: 408,
         }}>
-          {/* Mobile brand mark */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "2.5rem" }}>
+          {/* Mobile brand mark — hidden on desktop where left panel shows brand */}
+          <div className="auth-mobile-brand" style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "2.5rem" }}>
             <div style={{
-              width: 36, height: 36, borderRadius: radius.md,
-              background: colors.primary,
+              width: 38, height: 38, borderRadius: radius.md,
+              background: gradients.primary,
               display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 6px 16px -4px rgba(79,70,229,0.45)",
             }}>
               <Shield size={18} color="#fff" />
             </div>
-            <span style={{ fontSize: font.size.xl, fontWeight: font.weight.bold, color: colors.text }}>
+            <span style={{
+              fontSize: font.size.xl,
+              fontWeight: font.weight.bold,
+              color: colors.text,
+              letterSpacing: font.tracking.tight,
+            }}>
               HarborOps
             </span>
           </div>
 
           <h1 style={{
-            margin: "0 0 0.35rem",
-            fontSize: font.size.h2,
+            margin: "0 0 0.5rem",
+            fontSize: font.size.h1,
             fontWeight: font.weight.bold,
             color: colors.text,
-            letterSpacing: "-0.02em",
+            letterSpacing: font.tracking.tighter,
+            lineHeight: 1.15,
           }}>
             Welcome back
           </h1>
-          <p style={{ margin: "0 0 2rem", fontSize: font.size.base, color: colors.textMuted }}>
+          <p style={{
+            margin: "0 0 2.25rem",
+            fontSize: font.size.md,
+            color: colors.textSecondary,
+            lineHeight: 1.5,
+          }}>
             Sign in to continue to your workspace
           </p>
 
@@ -326,32 +377,52 @@ export default function LoginPage() {
               disabled={loading}
               style={{
                 width: "100%",
-                padding: "11px",
-                background: loading ? colors.gray400 : colors.primary,
+                padding: "12px",
+                background: loading ? colors.gray400 : gradients.primary,
                 color: "#fff",
                 border: "none",
                 borderRadius: radius.md,
-                fontSize: font.size.base,
+                fontSize: font.size.md,
                 fontWeight: font.weight.semibold,
+                letterSpacing: "0.005em",
                 cursor: loading ? "not-allowed" : "pointer",
-                transition: `background ${transition.base}`,
-                marginTop: "0.25rem",
+                transition: `all ${transition.base}`,
+                marginTop: "0.5rem",
+                boxShadow: loading ? "none" : "0 4px 14px -4px rgba(79,70,229,0.45), 0 1px 3px rgba(15,23,42,0.1)",
               }}
-              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = colors.primaryHover; }}
-              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLElement).style.background = colors.primary; }}
+              onMouseEnter={e => {
+                if (!loading) {
+                  (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #4F46E5 0%, #6D28D9 100%)";
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+                  (e.currentTarget as HTMLElement).style.boxShadow = "0 6px 20px -4px rgba(79,70,229,0.55), 0 2px 4px rgba(15,23,42,0.1)";
+                }
+              }}
+              onMouseLeave={e => {
+                if (!loading) {
+                  (e.currentTarget as HTMLElement).style.background = gradients.primary;
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                  (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 14px -4px rgba(79,70,229,0.45), 0 1px 3px rgba(15,23,42,0.1)";
+                }
+              }}
             >
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
           <p style={{
-            marginTop: "1.75rem",
+            marginTop: "2rem",
             fontSize: font.size.sm,
             color: colors.textMuted,
             textAlign: "center",
           }}>
             Don't have an account?{" "}
-            <Link to="/register" style={{ color: colors.primary, fontWeight: font.weight.medium }}>
+            <Link to="/register" style={{
+              color: colors.primary,
+              fontWeight: font.weight.semibold,
+              textDecoration: "none",
+              borderBottom: `1px solid ${colors.primaryMid}`,
+              paddingBottom: 1,
+            }}>
               Register
             </Link>
           </p>

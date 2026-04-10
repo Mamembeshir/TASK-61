@@ -76,6 +76,7 @@ class WebhookEndpointSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "tenant_id", "created_at", "updated_at"]
+        extra_kwargs = {"secret": {"write_only": True}}
 
     def validate_url(self, value):
         if not value:

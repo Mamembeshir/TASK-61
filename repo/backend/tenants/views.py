@@ -6,8 +6,16 @@ Tenant-scoped endpoints accessible to all authenticated users.
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import serializers as drf_serializers
 
+from core.pagination import paginate_list
 from tenants.models import Site
+
+
+class _SiteSerializer(drf_serializers.ModelSerializer):
+    class Meta:
+        model = Site
+        fields = ["id", "name", "timezone"]
 
 
 class SiteListView(APIView):
@@ -27,13 +35,9 @@ class SiteListView(APIView):
         user = request.user
 
         if user.role == "ADMIN":
-            sites = Site.objects.filter(tenant=user.tenant, is_active=True).order_by("name")
+            qs = Site.objects.filter(tenant=user.tenant, is_active=True).order_by("name")
         else:
             assigned_ids = UserSiteAssignment.objects.filter(user=user).values_list("site_id", flat=True)
-            sites = Site.objects.filter(pk__in=assigned_ids, is_active=True).order_by("name")
+            qs = Site.objects.filter(pk__in=assigned_ids, is_active=True).order_by("name")
 
-        data = [
-            {"id": str(s.pk), "name": s.name, "timezone": s.timezone}
-            for s in sites
-        ]
-        return Response(data)
+        return paginate_list(request, qs, _SiteSerializer)

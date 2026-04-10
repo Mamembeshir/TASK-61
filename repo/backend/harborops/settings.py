@@ -58,6 +58,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.AccountStatusMiddleware",
+    "core.middleware.SignedRequestMiddleware",
     "core.middleware.IdempotencyMiddleware",
     "core.middleware.TenantMiddleware",
     "core.middleware.RequestLoggingMiddleware",
@@ -194,10 +195,51 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
 # ---------------------------------------------------------------------------
 # Encryption
 # ---------------------------------------------------------------------------
-# AES-256-GCM key — must be a 32-byte URL-safe base64-encoded string in production.
-# The default below is for development ONLY. Override via env var in any real deployment.
-_DEV_ENCRYPTION_KEY = "GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw="
-FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", _DEV_ENCRYPTION_KEY)
+# AES-256-GCM key — must be a URL-safe base64-encoded 32-byte value.
+#
+# In production (DEBUG=False) the FIELD_ENCRYPTION_KEY env var is REQUIRED;
+# startup fails loudly if it is missing or malformed so a misconfigured
+# deployment cannot silently fall back to a known key.
+#
+# In development / CI / tests (DEBUG=True) we fall back to a deterministic
+# dev key so that `docker compose up` and `pytest` work out of the box without
+# every contributor having to mint a key first. This dev key is intentionally
+# checked into source — it must NEVER be used to encrypt real PII.
+import base64 as _base64
+import warnings as _warnings
+from django.core.exceptions import ImproperlyConfigured as _ImproperlyConfigured
+
+# Stable, well-known dev/CI key. Decodes to exactly 32 bytes.
+_DEV_FIELD_ENCRYPTION_KEY = "GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw="
+
+_raw_enc_key = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+if not _raw_enc_key:
+    if DEBUG:
+        _warnings.warn(
+            "FIELD_ENCRYPTION_KEY is not set — falling back to the built-in "
+            "development key. This is fine for local dev / CI / tests, but it "
+            "MUST be overridden in production.",
+            RuntimeWarning,
+            stacklevel=1,
+        )
+        _raw_enc_key = _DEV_FIELD_ENCRYPTION_KEY
+    else:
+        raise _ImproperlyConfigured(
+            "FIELD_ENCRYPTION_KEY environment variable is required in production "
+            "but not set. Generate one with: python -c \"import secrets, base64; "
+            "print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())\""
+        )
+try:
+    _decoded = _base64.urlsafe_b64decode(_raw_enc_key + "==")
+    if len(_decoded) != 32:
+        raise ValueError(f"Decoded key is {len(_decoded)} bytes; expected 32.")
+except Exception as _exc:
+    raise _ImproperlyConfigured(
+        f"FIELD_ENCRYPTION_KEY is invalid: {_exc}. "
+        "It must be a URL-safe base64-encoded 32-byte value."
+    ) from _exc
+FIELD_ENCRYPTION_KEY = _raw_enc_key
+del _base64, _warnings, _ImproperlyConfigured, _raw_enc_key, _decoded
 
 # ---------------------------------------------------------------------------
 # Celery

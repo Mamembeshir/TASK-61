@@ -22,6 +22,7 @@ from core.middleware import (
     TenantMiddleware,
     RequestLoggingMiddleware,
     RateLimitMiddleware,
+    SignedRequestMiddleware,
 )
 from core.models import IdempotencyRecord, RequestLog
 from iam.factories import TenantFactory, UserFactory, AdminUserFactory
@@ -380,3 +381,178 @@ class TestRateLimitMiddleware:
         body = json.loads(resp.content)
         assert body["error"]["code"] == "rate_limited"
         assert "Retry-After" in resp
+
+
+# ===========================================================================
+# 6. SignedRequestMiddleware
+# ===========================================================================
+
+import hashlib
+import hmac as _hmac_lib
+import time as _time
+import uuid as _uuid
+
+
+def _signed_headers(token_key: str, method: str, path: str, *,
+                    ts: int | None = None, nonce: str | None = None,
+                    signature: str | None = None) -> dict:
+    """Build a valid (or deliberately tampered) set of signing headers."""
+    ts_val   = ts    if ts    is not None else int(_time.time())
+    nonce_val = nonce if nonce is not None else str(_uuid.uuid4())
+    message  = f"{method}\n{path}\n{ts_val}\n{nonce_val}".encode()
+    sig      = signature if signature is not None else _hmac_lib.new(
+        token_key.encode(), message, hashlib.sha256
+    ).hexdigest()
+    return {
+        "HTTP_AUTHORIZATION":       f"Token {token_key}",
+        "HTTP_X_REQUEST_TIMESTAMP": str(ts_val),
+        "HTTP_X_REQUEST_NONCE":     nonce_val,
+        "HTTP_X_REQUEST_SIGNATURE": sig,
+    }
+
+
+@pytest.mark.django_db
+class TestSignedRequestMiddleware:
+    """
+    Covers the four rejection paths in SignedRequestMiddleware._verify():
+      1. Missing headers             → 400 signed_request_required
+      2. Expired timestamp           → 400 timestamp_expired
+      3. Invalid (wrong) signature   → 400 invalid_signature
+      4. Nonce replay                → 400 nonce_replayed
+    Plus the positive path: valid headers pass through.
+    Non-Token requests are always exempt.
+    """
+
+    TOKEN = "test-token-key-0000000000000000"
+    PATH  = "/api/v1/assets/"
+
+    def _mw(self):
+        return SignedRequestMiddleware(_get_response_ok)
+
+    def _req(self, headers: dict) -> MagicMock:
+        req = _make_request(method="GET", path=self.PATH, headers=headers)
+        return req
+
+    # ------------------------------------------------------------------
+    # Happy path
+    # ------------------------------------------------------------------
+
+    def test_valid_signed_request_passes_through(self):
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH)
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 200
+
+    def test_non_token_auth_exempt(self):
+        """Session-authenticated requests carry no Authorization: Token header."""
+        req = _make_request(method="GET", path=self.PATH, headers={
+            "HTTP_AUTHORIZATION": "Session abc123",
+        })
+        resp = self._mw()(req)
+        assert resp.status_code == 200
+
+    def test_non_api_path_exempt(self):
+        req = _make_request(method="GET", path="/admin/", headers={
+            "HTTP_AUTHORIZATION": f"Token {self.TOKEN}",
+        })
+        resp = self._mw()(req)
+        assert resp.status_code == 200
+
+    # ------------------------------------------------------------------
+    # Missing headers
+    # ------------------------------------------------------------------
+
+    def test_missing_all_signing_headers_returns_400(self):
+        req = _make_request(method="GET", path=self.PATH, headers={
+            "HTTP_AUTHORIZATION": f"Token {self.TOKEN}",
+            # No timestamp / nonce / signature
+        })
+        resp = self._mw()(req)
+        assert resp.status_code == 400
+        body = json.loads(resp.content)
+        assert body["error"]["code"] == "signed_request_required"
+
+    def test_missing_nonce_returns_400(self):
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH)
+        del headers["HTTP_X_REQUEST_NONCE"]
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "signed_request_required"
+
+    def test_missing_signature_returns_400(self):
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH)
+        del headers["HTTP_X_REQUEST_SIGNATURE"]
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "signed_request_required"
+
+    # ------------------------------------------------------------------
+    # Expired timestamp
+    # ------------------------------------------------------------------
+
+    def test_timestamp_too_old_returns_400(self):
+        stale_ts = int(_time.time()) - SignedRequestMiddleware.TIMESTAMP_TOLERANCE_S - 1
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH, ts=stale_ts)
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "timestamp_expired"
+
+    def test_timestamp_in_future_returns_400(self):
+        future_ts = int(_time.time()) + SignedRequestMiddleware.TIMESTAMP_TOLERANCE_S + 1
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH, ts=future_ts)
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "timestamp_expired"
+
+    def test_non_integer_timestamp_returns_400(self):
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH)
+        headers["HTTP_X_REQUEST_TIMESTAMP"] = "not-a-number"
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "invalid_timestamp"
+
+    # ------------------------------------------------------------------
+    # Invalid signature
+    # ------------------------------------------------------------------
+
+    def test_wrong_signature_returns_400(self):
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH,
+                                  signature="deadbeef" * 8)
+        resp = self._mw()(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "invalid_signature"
+
+    def test_signature_for_different_path_returns_400(self):
+        """Signing /api/v1/other/ then sending to /api/v1/assets/ must fail."""
+        headers = _signed_headers(self.TOKEN, "GET", "/api/v1/other/")
+        # Keep all headers but send request to a different path
+        req = _make_request(method="GET", path=self.PATH, headers=headers)
+        resp = self._mw()(req)
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "invalid_signature"
+
+    def test_signature_for_different_method_returns_400(self):
+        """Signing GET then sending as POST must fail."""
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH)
+        req = _make_request(method="POST", path=self.PATH, headers=headers)
+        resp = self._mw()(req)
+        assert resp.status_code == 400
+        assert json.loads(resp.content)["error"]["code"] == "invalid_signature"
+
+    # ------------------------------------------------------------------
+    # Nonce replay
+    # ------------------------------------------------------------------
+
+    def test_nonce_replay_returns_400(self):
+        """Using the same nonce twice must be rejected on the second request."""
+        fixed_nonce = str(_uuid.uuid4())
+        headers = _signed_headers(self.TOKEN, "GET", self.PATH, nonce=fixed_nonce)
+
+        mw = self._mw()
+        # First request — must succeed
+        resp1 = mw(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp1.status_code == 200
+
+        # Second request with identical nonce — must be rejected
+        resp2 = mw(_make_request(method="GET", path=self.PATH, headers=headers))
+        assert resp2.status_code == 400
+        assert json.loads(resp2.content)["error"]["code"] == "nonce_replayed"

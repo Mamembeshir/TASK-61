@@ -1,28 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { CheckSquare, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
 import { meetingApi, type MeetingTask, type TaskStatus } from "@/api/meetings";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, Badge, EmptyState,
+  SkeletonTable, AlertBanner,
+} from "@/components/ui";
+import { selectStyle } from "@/styles/forms";
+import { colors, font, radius, taskStatusColors } from "@/styles/tokens";
 
 // ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
 function TaskStatusBadge({ status }: { status: TaskStatus }) {
-  const cfg: Record<TaskStatus, { bg: string; color: string; label: string }> = {
-    TODO:        { bg: "#e2e3e5", color: "#41464b", label: "To Do" },
-    IN_PROGRESS: { bg: "#cfe2ff", color: "#084298", label: "In Progress" },
-    DONE:        { bg: "#d1e7dd", color: "#0f5132", label: "Done" },
-    OVERDUE:     { bg: "#f8d7da", color: "#842029", label: "Overdue" },
-    CANCELLED:   { bg: "#f0f0f0", color: "#6c757d", label: "Cancelled" },
-  };
-  const c = cfg[status] ?? { bg: "#e2e3e5", color: "#41464b", label: status };
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: "12px",
-      fontSize: "0.75rem", fontWeight: 600, background: c.bg, color: c.color,
-      letterSpacing: "0.03em",
-    }}>
-      {c.label}
-    </span>
-  );
+  const cfg = taskStatusColors[status] ?? { bg: colors.gray200, text: colors.gray700, label: status };
+  return <Badge bg={cfg.bg} text={cfg.text} label={cfg.label} dot size="sm" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,45 +43,67 @@ function TaskRow({ task, onUpdated }: TaskRowProps) {
   }
 
   return (
-    <tr style={{
-      borderBottom: "1px solid #dee2e6",
-      background: isOverdue ? "#fff5f5" : undefined,
-    }}>
+    <Tr>
       {/* Meeting link */}
-      <td style={td}>
+      <Td>
         <button
-          onClick={() => navigate(`/meetings/${task.resolution_id}`)}
-          style={{ background: "none", border: "none", color: "#0d6efd", cursor: "pointer", padding: 0, fontSize: "0.87rem", textDecoration: "underline", textAlign: "left" }}
+          onClick={(e) => { e.stopPropagation(); navigate(`/meetings/${task.resolution_id}`); }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            background: "none",
+            border: "none",
+            color: colors.primary,
+            cursor: "pointer",
+            padding: 0,
+            fontSize: font.size.sm,
+            fontWeight: font.weight.medium,
+            fontFamily: font.family,
+          }}
           title="Go to meeting"
         >
-          View Meeting
+          View
+          <ExternalLink size={12} />
         </button>
-      </td>
+      </Td>
 
       {/* Task title */}
-      <td style={{ ...td, fontWeight: 500 }}>{task.title}</td>
+      <Td style={{ fontWeight: font.weight.medium, color: colors.text }}>
+        {task.title}
+      </Td>
 
       {/* Assignee */}
-      <td style={{ ...td, color: "#495057" }}>{task.assignee_username}</td>
+      <Td style={{ color: colors.textSecondary, fontSize: font.size.sm }}>
+        {task.assignee_username}
+      </Td>
 
       {/* Due date */}
-      <td style={{ ...td, color: isOverdue ? "#842029" : "#6c757d", fontWeight: isOverdue ? 600 : undefined }}>
+      <Td style={{
+        color: isOverdue ? colors.dangerDark : colors.textMuted,
+        fontWeight: isOverdue ? font.weight.semibold : undefined,
+        fontSize: font.size.sm,
+        whiteSpace: "nowrap",
+        fontVariantNumeric: "tabular-nums",
+      }}>
         {task.due_date ? fmtDate(task.due_date) : "—"}
-      </td>
+      </Td>
 
       {/* Status badge */}
-      <td style={td}><TaskStatusBadge status={task.status} /></td>
+      <Td><TaskStatusBadge status={task.status} /></Td>
 
       {/* Status update dropdown */}
-      <td style={td}>
+      <Td>
         {task.allowed_transitions.length > 0 ? (
           <select
             value={task.status}
             onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
+            onClick={(e) => e.stopPropagation()}
             disabled={updating}
             style={{
-              padding: "5px 8px", border: "1px solid #ced4da", borderRadius: "5px",
-              fontSize: "0.82rem", cursor: "pointer", background: "#fff",
+              ...selectStyle,
+              width: "auto",
+              minWidth: 130,
               opacity: updating ? 0.6 : 1,
             }}
           >
@@ -99,26 +113,32 @@ function TaskRow({ task, onUpdated }: TaskRowProps) {
             ))}
           </select>
         ) : (
-          <span style={{ color: "#adb5bd", fontSize: "0.82rem" }}>—</span>
+          <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>—</span>
         )}
-      </td>
+      </Td>
 
       {/* Progress notes */}
-      <td style={{ ...td, maxWidth: "220px" }}>
+      <Td style={{ maxWidth: 240 }}>
         {task.progress_notes ? (
           <span
             title={task.progress_notes}
-            style={{ fontSize: "0.83rem", color: "#495057" }}
+            style={{
+              fontSize: font.size.sm,
+              color: colors.textSecondary,
+              display: "block",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: 240,
+            }}
           >
-            {task.progress_notes.length > 80
-              ? task.progress_notes.slice(0, 80) + "…"
-              : task.progress_notes}
+            {task.progress_notes}
           </span>
         ) : (
-          <span style={{ color: "#adb5bd", fontSize: "0.82rem" }}>—</span>
+          <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>—</span>
         )}
-      </td>
-    </tr>
+      </Td>
+    </Tr>
   );
 }
 
@@ -167,66 +187,97 @@ export default function MyTasksPage() {
   const overdueCount = tasks.filter((t) => t.status === "OVERDUE").length;
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "1200px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-        <div style={{ flexGrow: 1 }}>
-          <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>My Tasks</h2>
-          {overdueCount > 0 && (
-            <div style={{ marginTop: "4px", fontSize: "0.83rem", color: "#842029", fontWeight: 500 }}>
-              {overdueCount} overdue task{overdueCount !== 1 ? "s" : ""}
-            </div>
+    <div>
+      <PageHeader
+        title="My Tasks"
+        subtitle={loading
+          ? "Loading tasks…"
+          : `${tasks.length} task${tasks.length === 1 ? "" : "s"} assigned to you`}
+        icon={<CheckSquare size={22} />}
+        actions={
+          <Button
+            variant="secondary"
+            onClick={load}
+            loading={loading}
+            icon={<RefreshCw size={15} />}
+          >
+            Refresh
+          </Button>
+        }
+      />
+
+      {/* Overdue banner */}
+      {overdueCount > 0 && !loading && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.7rem",
+          padding: "12px 16px",
+          background: colors.dangerSoft,
+          border: `1px solid ${colors.dangerLight}`,
+          borderLeft: `3px solid ${colors.danger}`,
+          borderRadius: radius.md,
+          color: colors.dangerDark,
+          fontSize: font.size.base,
+          fontWeight: font.weight.medium,
+          marginBottom: "1.15rem",
+        }}>
+          <AlertTriangle size={16} />
+          {overdueCount} overdue task{overdueCount !== 1 ? "s" : ""} — needs attention.
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {statusFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStatusFilter("")}
+            >
+              Clear filter
+            </Button>
           )}
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={filterSelect}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <button onClick={load} style={outlineBtn} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
+      </Card>
 
-      {/* Content */}
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
+
+      {/* Table */}
       {loading ? (
-        <div style={{ padding: "2rem", color: "#6c757d" }}>Loading tasks…</div>
-      ) : error ? (
-        <div style={{ padding: "1rem", background: "#f8d7da", color: "#842029", borderRadius: "6px" }}>
-          {error}
-        </div>
+        <SkeletonTable rows={6} cols={7} />
       ) : tasks.length === 0 ? (
-        <div style={{ padding: "3rem", textAlign: "center", color: "#6c757d" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>✓</div>
-          {statusFilter
-            ? `No tasks with status "${statusFilter}".`
-            : "You have no tasks assigned to you."}
-        </div>
+        <Card padding="0">
+          <EmptyState
+            icon="✓"
+            title={statusFilter ? `No ${statusFilter.toLowerCase().replace("_", " ")} tasks` : "You're all caught up"}
+            description={statusFilter
+              ? "Try clearing the filter to see other tasks."
+              : "You have no tasks assigned to you right now."}
+          />
+        </Card>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid #dee2e6" }}>
-                <th style={th}>Meeting</th>
-                <th style={th}>Task</th>
-                <th style={th}>Assignee</th>
-                <th style={th}>Due Date</th>
-                <th style={th}>Status</th>
-                <th style={th}>Update Status</th>
-                <th style={th}>Progress Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <TaskRow key={task.id} task={task} onUpdated={handleTaskUpdated} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table columns={["Meeting", "Task", "Assignee", "Due Date", "Status", "Update Status", "Progress Notes"]}>
+          {tasks.map((task) => (
+            <TaskRow key={task.id} task={task} onUpdated={handleTaskUpdated} />
+          ))}
+        </Table>
       )}
     </div>
   );
@@ -241,20 +292,3 @@ function fmtDate(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   } catch { return iso; }
 }
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-const outlineBtn: React.CSSProperties = {
-  padding: "7px 14px", background: "#fff", color: "#0d6efd",
-  border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem",
-};
-const filterSelect: React.CSSProperties = {
-  padding: "7px 10px", border: "1px solid #ced4da", borderRadius: "6px",
-  fontSize: "0.85rem", background: "#fff", cursor: "pointer", minWidth: "140px",
-};
-const th: React.CSSProperties = {
-  padding: "8px 14px", fontWeight: 600, fontSize: "0.78rem", color: "#495057",
-  textTransform: "uppercase", textAlign: "left",
-};
-const td: React.CSSProperties = { padding: "10px 14px", verticalAlign: "middle" };

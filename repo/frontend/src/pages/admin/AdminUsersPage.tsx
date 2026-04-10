@@ -1,66 +1,45 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Users, Plus } from "lucide-react";
 import { adminApi, type AdminUserSummary } from "@/api/admin";
+import SearchInput from "@/components/SearchInput";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, Badge, EmptyState,
+  SkeletonTable, AlertBanner,
+} from "@/components/ui";
+import { selectStyle } from "@/styles/forms";
+import { colors, font, userStatusColors, roleColors } from "@/styles/tokens";
 
 // ---------------------------------------------------------------------------
-// Status badge
+// Badges
 // ---------------------------------------------------------------------------
-
-const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  PENDING_REVIEW: { bg: "#fff3cd", color: "#856404" },
-  ACTIVE:         { bg: "#d1e7dd", color: "#0a3622" },
-  SUSPENDED:      { bg: "#ffe5d0", color: "#7d2d00" },
-  DEACTIVATED:    { bg: "#e2e3e5", color: "#41464b" },
-};
-
 function StatusBadge({ status }: { status: string }) {
-  const style = STATUS_COLORS[status] ?? { bg: "#eee", color: "#333" };
-  return (
-    <span style={{
-      padding: "2px 10px",
-      borderRadius: "12px",
-      fontSize: "0.78rem",
-      fontWeight: 600,
-      backgroundColor: style.bg,
-      color: style.color,
-      whiteSpace: "nowrap",
-    }}>
-      {status.replace("_", " ")}
-    </span>
-  );
+  const cfg = userStatusColors[status] ?? { bg: colors.gray200, text: colors.gray700, label: status.replace("_", " ") };
+  return <Badge bg={cfg.bg} text={cfg.text} label={cfg.label} dot size="sm" />;
 }
 
-// ---------------------------------------------------------------------------
-// Role badge
-// ---------------------------------------------------------------------------
-
-const ROLE_COLORS: Record<string, string> = {
-  ADMIN:   "#0d6efd",
-  STAFF:   "#6c757d",
-  COURIER: "#6610f2",
-};
-
 function RoleBadge({ role }: { role: string }) {
-  return (
-    <span style={{
-      padding: "2px 10px",
-      borderRadius: "12px",
-      fontSize: "0.78rem",
-      fontWeight: 600,
-      backgroundColor: ROLE_COLORS[role] ?? "#6c757d",
-      color: "#fff",
-    }}>
-      {role}
-    </span>
-  );
+  const cfg = roleColors[role] ?? { bg: colors.gray100, text: colors.gray600 };
+  return <Badge bg={cfg.bg} text={cfg.text} label={role} size="sm" />;
 }
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "",               label: "All Statuses"    },
+  { value: "PENDING_REVIEW", label: "Pending Review"  },
+  { value: "ACTIVE",         label: "Active"          },
+  { value: "SUSPENDED",      label: "Suspended"       },
+  { value: "DEACTIVATED",    label: "Deactivated"     },
+];
 
-const STATUSES = ["", "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "DEACTIVATED"];
-const ROLES    = ["", "ADMIN", "STAFF", "COURIER"];
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "",        label: "All Roles" },
+  { value: "ADMIN",   label: "Admin"     },
+  { value: "STAFF",   label: "Staff"     },
+  { value: "COURIER", label: "Courier"   },
+];
 
 export default function AdminUsersPage() {
   const navigate = useNavigate();
@@ -100,118 +79,136 @@ export default function AdminUsersPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>User Management</h2>
-        <button
-          onClick={() => navigate("/admin/users/create-courier")}
-          style={{ padding: "8px 16px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 }}
-        >
-          + Create Courier
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="User Management"
+        subtitle={count > 0 ? `${count.toLocaleString()} user${count === 1 ? "" : "s"} in directory` : "Manage staff, admins, and couriers"}
+        icon={<Users size={22} />}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => navigate("/admin/users/create-courier")}
+            icon={<Plus size={16} />}
+          >
+            Create Courier
+          </Button>
+        }
+      />
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <input
-          placeholder="Search username…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setCursor(null); }}
-          style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem", minWidth: "200px" }}
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setCursor(null); }}
-          style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem" }}
-        >
-          {STATUSES.map(s => <option key={s} value={s}>{s || "All Statuses"}</option>)}
-        </select>
-        <select
-          value={roleFilter}
-          onChange={(e) => { setRoleFilter(e.target.value); setCursor(null); }}
-          style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem" }}
-        >
-          {ROLES.map(r => <option key={r} value={r}>{r || "All Roles"}</option>)}
-        </select>
-      </div>
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <div style={{ flex: "1 1 240px", minWidth: 220 }}>
+            <SearchInput
+              value={search}
+              onChange={(v) => { setSearch(v); setCursor(null); }}
+              placeholder="Search username…"
+            />
+          </div>
 
-      {/* Error */}
-      {error && (
-        <div style={{ background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" }}>
-          {error}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setCursor(null); }}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={roleFilter}
+            onChange={(e) => { setRoleFilter(e.target.value); setCursor(null); }}
+            style={{ ...selectStyle, width: "auto", minWidth: 140 }}
+          >
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          {(statusFilter || roleFilter || search) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setStatusFilter(""); setRoleFilter(""); setSearch(""); setCursor(null); }}
+            >
+              Clear filters
+            </Button>
+          )}
         </div>
-      )}
+      </Card>
+
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       {/* Table */}
       {loading ? (
-        <p style={{ color: "#6c757d" }}>Loading…</p>
+        <SkeletonTable rows={6} cols={6} />
+      ) : users.length === 0 ? (
+        <Card padding="0">
+          <EmptyState
+            icon="👥"
+            title="No users found"
+            description={statusFilter || roleFilter || search
+              ? "Try clearing the filters to see more users."
+              : "Invite teammates to get started."}
+          />
+        </Card>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #dee2e6", textAlign: "left" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Username</th>
-              <th style={th}>Role</th>
-              <th style={th}>Status</th>
-              <th style={th}>Sites</th>
-              <th style={th}>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: "1.5rem", color: "#6c757d", textAlign: "center" }}>No users found.</td></tr>
-            ) : users.map(u => (
-              <tr
-                key={u.id}
-                onClick={() => navigate(`/admin/users/${u.id}`)}
-                style={{ borderBottom: "1px solid #dee2e6", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#f8f9fa")}
-                onMouseLeave={e => (e.currentTarget.style.background = "")}
-              >
-                <td style={td}>{u.legal_name ?? "—"}</td>
-                <td style={td}><code>{u.username}</code></td>
-                <td style={td}><RoleBadge role={u.role} /></td>
-                <td style={td}><StatusBadge status={u.status} /></td>
-                <td style={td}>{u.site_names.join(", ") || "—"}</td>
-                <td style={td}>{new Date(u.created_at).toLocaleDateString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table columns={["Name", "Username", "Role", "Status", "Sites", "Created"]}>
+          {users.map((u) => (
+            <Tr key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)}>
+              <Td style={{ fontWeight: font.weight.semibold, color: colors.text }}>
+                {u.legal_name ?? "—"}
+              </Td>
+              <Td>
+                <code style={{
+                  fontFamily: font.familyMono,
+                  fontSize: font.size.xs,
+                  color: colors.textSecondary,
+                }}>
+                  {u.username}
+                </code>
+              </Td>
+              <Td><RoleBadge role={u.role} /></Td>
+              <Td><StatusBadge status={u.status} /></Td>
+              <Td style={{ color: colors.textSecondary, fontSize: font.size.sm }}>
+                {u.site_names.join(", ") || "—"}
+              </Td>
+              <Td style={{ color: colors.textMuted, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+                {new Date(u.created_at).toLocaleDateString()}
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
 
       {/* Pagination */}
       {(prevCursor || nextCursor) && (
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button onClick={() => setCursor(prevCursor)} disabled={!prevCursor} style={pagBtn}>← Prev</button>
-          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>{count} total</span>
-          <button onClick={() => setCursor(nextCursor)} disabled={!nextCursor} style={pagBtn}>Next →</button>
+        <div style={{
+          marginTop: "1.15rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "0.6rem",
+        }}>
+          <span style={{ fontSize: font.size.sm, color: colors.textMuted }}>
+            {count.toLocaleString()} total
+          </span>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button variant="secondary" size="sm" disabled={!prevCursor} onClick={() => setCursor(prevCursor)}>
+              ← Prev
+            </Button>
+            <Button variant="secondary" size="sm" disabled={!nextCursor} onClick={() => setCursor(nextCursor)}>
+              Next →
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-const th: React.CSSProperties = {
-  padding: "10px 12px",
-  fontWeight: 600,
-  fontSize: "0.82rem",
-  color: "#495057",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
-const td: React.CSSProperties = {
-  padding: "10px 12px",
-  verticalAlign: "middle",
-};
-
-const pagBtn: React.CSSProperties = {
-  padding: "5px 12px",
-  border: "1px solid #ced4da",
-  borderRadius: "6px",
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: "0.85rem",
-};

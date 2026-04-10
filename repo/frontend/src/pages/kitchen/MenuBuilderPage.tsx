@@ -19,8 +19,6 @@ interface Group {
   collapsed: boolean;
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
-
 export default function MenuBuilderPage() {
   const navigate = useNavigate();
 

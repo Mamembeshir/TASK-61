@@ -59,8 +59,9 @@ services:
       DB_HOST: mysql
       DB_PORT: 3306
       REDIS_URL: redis://redis:6379/0
-      # Dev-only encryption key — override in production
-      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw=}
+      # Optional in dev/CI — settings.py falls back to a built-in dev key when DEBUG=True.
+      # Always set this to a real value in production.
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
       UPLOAD_ROOT: /var/harborops/uploads/
     ports:
       - "8000:8000"
@@ -93,7 +94,7 @@ services:
       DB_HOST: mysql
       DB_PORT: 3306
       REDIS_URL: redis://redis:6379/0
-      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-GfnFkVsAox_R0gEo8qkzqXF_nscikghFSs9pIyF8ZEw=}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
     volumes:
       - ./backend:/app
       - uploads:/var/harborops/uploads/

@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Utensils, Plus } from "lucide-react";
 import { dishApi, allergenApi, type DishDetail, type DishVersionRead, type Allergen } from "@/api/foodservice";
 import StatusBadge from "@/components/StatusBadge";
-import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  PageHeader, Button, Card, Table, Tr, Td,
+  AlertBanner, Modal,
+} from "@/components/ui";
+import { colors, font, radius } from "@/styles/tokens";
 
 const CHIP_COLORS: Record<string, string> = {
   GLUTEN: "#fff3cd", MILK: "#d1e7dd", EGG: "#cfe2ff", PEANUT: "#f8d7da",
@@ -61,200 +66,396 @@ export default function DishDetailPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: "1.5rem" }}>Loading…</div>;
-  if (error)   return <div style={{ padding: "1.5rem", color: "#842029" }}>{error}</div>;
-  if (!dish)   return null;
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Loading dish…" icon={<Utensils size={22} />} />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="Dish" icon={<Utensils size={22} />} />
+        <AlertBanner type="error" message={error} />
+      </div>
+    );
+  }
+  if (!dish) return null;
 
   const av = dish.active_version;
-  const allergenMap = new Map(allergens.map((a) => [a.name, a]));
+  void allergens;
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "900px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate("/kitchen/dishes")} style={backBtn}>← Dishes</button>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>{dish.name ?? "Dish"}</h2>
-        {av ? <StatusBadge status="ACTIVE" /> : <StatusBadge status="DRAFT" />}
-      </div>
+    <div>
+      <PageHeader
+        title={dish.name ?? "Dish"}
+        subtitle={av ? `Active version v${av.version_number}` : "No active version yet"}
+        icon={<Utensils size={22} />}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/kitchen/dishes")}
+              icon={<ArrowLeft size={14} />}
+            >
+              Dishes
+            </Button>
+            {av ? <StatusBadge status="ACTIVE" size="md" /> : <StatusBadge status="DRAFT" size="md" />}
+            <Button
+              variant="primary"
+              onClick={() => navigate(`/kitchen/dishes/${id}/versions/new`)}
+              icon={<Plus size={16} />}
+            >
+              New Version
+            </Button>
+          </>
+        }
+      />
 
       {/* Active version card */}
       {av ? (
-        <div style={card}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>Active Version v{av.version_number}</h3>
-            <button onClick={() => navigate(`/kitchen/dishes/${id}/versions/new`)} style={outlineBtn}>New Version</button>
-          </div>
+        <Card style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{
+            margin: "0 0 1rem",
+            fontSize: font.size.lg,
+            fontWeight: font.weight.semibold,
+            color: colors.text,
+            letterSpacing: font.tracking.tight,
+          }}>
+            Active Version · v{av.version_number}
+          </h3>
 
-          <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-            <Stat label="Per-Serving Cost" value={`$${parseFloat(av.per_serving_cost).toFixed(2)}`} />
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "0.85rem",
+            marginBottom: "1.5rem",
+          }}>
+            <Stat
+              label="Per-Serving Cost"
+              value={`$${parseFloat(av.per_serving_cost).toFixed(2)}`}
+              mono
+            />
             <Stat label="Effective From" value={av.effective_from} />
           </div>
 
-          {/* Description */}
           {av.description && (
-            <p style={{ color: "#495057", fontSize: "0.9rem", marginBottom: "1rem" }}>{av.description}</p>
+            <p style={{
+              color: colors.textSecondary,
+              fontSize: font.size.base,
+              marginBottom: "1.25rem",
+              lineHeight: 1.6,
+            }}>
+              {av.description}
+            </p>
           )}
 
           {/* Allergens */}
-          <div style={{ marginBottom: "1rem" }}>
-            <h4 style={subHead}>Allergens</h4>
+          <Section title="Allergens">
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {av.allergens.length === 0
-                ? <span style={{ color: "#6c757d" }}>None declared</span>
-                : av.allergens.map((a) => (
-                  <span key={a.id} style={{ padding: "3px 10px", borderRadius: "12px", fontSize: "0.8rem", fontWeight: 500, background: CHIP_COLORS[a.code] ?? "#e2e3e5" }}>
-                    {a.name}
-                  </span>
-                ))
-              }
+              {av.allergens.length === 0 ? (
+                <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>None declared</span>
+              ) : av.allergens.map((a) => (
+                <span
+                  key={a.id}
+                  style={{
+                    padding: "4px 11px",
+                    borderRadius: radius.full,
+                    fontSize: font.size.xs,
+                    fontWeight: font.weight.semibold,
+                    background: CHIP_COLORS[a.code] ?? "#e2e3e5",
+                    color: colors.gray800,
+                  }}
+                >
+                  {a.name}
+                </span>
+              ))}
             </div>
-          </div>
+          </Section>
 
           {/* Nutrition */}
-          <div style={{ marginBottom: "1rem" }}>
-            <h4 style={subHead}>Nutrition</h4>
+          <Section title="Nutrition">
             {av.has_nutrition ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", maxWidth: "500px" }}>
-                <NutStat label="Calories" value={`${av.calories} kcal`} />
-                <NutStat label="Protein"  value={`${av.protein_g} g`} />
-                <NutStat label="Carbs"    value={`${av.carbs_g} g`} />
-                <NutStat label="Fat"      value={`${av.fat_g} g`} />
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(110px, 1fr))",
+                gap: "0.75rem",
+                maxWidth: "560px",
+              }}>
+                <NutStat label="Calories" value={`${av.calories}`} unit="kcal" />
+                <NutStat label="Protein"  value={`${av.protein_g}`} unit="g" />
+                <NutStat label="Carbs"    value={`${av.carbs_g}`} unit="g" />
+                <NutStat label="Fat"      value={`${av.fat_g}`} unit="g" />
               </div>
             ) : (
-              <span style={{ color: "#6c757d", fontSize: "0.88rem" }}>Not provided</span>
+              <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>Not provided</span>
             )}
-          </div>
+          </Section>
 
           {/* Portions */}
           {av.portions.length > 0 && (
-            <div style={{ marginBottom: "1rem" }}>
-              <h4 style={subHead}>Portions</h4>
-              <table style={{ borderCollapse: "collapse", fontSize: "0.88rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #dee2e6" }}>
-                    <th style={th}>Label</th><th style={th}>Size</th><th style={th}>Price Mult.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {av.portions.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                      <td style={td}>{p.portion_label}</td>
-                      <td style={td}>{p.serving_size_qty} {p.serving_size_unit}</td>
-                      <td style={td}>×{p.price_multiplier}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Section title="Portions">
+              <Table columns={["Label", "Size", "Price Multiplier"]}>
+                {av.portions.map((p) => (
+                  <Tr key={p.id}>
+                    <Td style={{ fontWeight: font.weight.medium }}>{p.portion_label}</Td>
+                    <Td style={{ color: colors.textSecondary }}>
+                      {p.serving_size_qty} {p.serving_size_unit}
+                    </Td>
+                    <Td style={{
+                      fontVariantNumeric: "tabular-nums",
+                      fontFamily: font.familyMono,
+                      fontSize: font.size.sm,
+                    }}>
+                      ×{p.price_multiplier}
+                    </Td>
+                  </Tr>
+                ))}
+              </Table>
+            </Section>
           )}
 
           {/* Addons */}
           {av.addons.length > 0 && (
-            <div>
-              <h4 style={subHead}>Add-ons</h4>
-              <table style={{ borderCollapse: "collapse", fontSize: "0.88rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #dee2e6" }}>
-                    <th style={th}>Name</th><th style={th}>Cost</th><th style={th}>Allergens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {av.addons.map((a) => (
-                    <tr key={a.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                      <td style={td}>{a.addon_name}</td>
-                      <td style={td}>${parseFloat(a.additional_cost).toFixed(2)}</td>
-                      <td style={td}>
+            <Section title="Add-ons" noBottomMargin>
+              <Table columns={["Name", "Additional Cost", "Allergens"]}>
+                {av.addons.map((a) => (
+                  <Tr key={a.id}>
+                    <Td style={{ fontWeight: font.weight.medium }}>{a.addon_name}</Td>
+                    <Td style={{
+                      fontVariantNumeric: "tabular-nums",
+                      fontFamily: font.familyMono,
+                      fontSize: font.size.sm,
+                    }}>
+                      ${parseFloat(a.additional_cost).toFixed(2)}
+                    </Td>
+                    <Td>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                         {a.allergens.map((al) => (
-                          <span key={al.id} style={{ marginRight: "4px", padding: "2px 7px", borderRadius: "10px", fontSize: "0.75rem", background: CHIP_COLORS[al.code] ?? "#e2e3e5" }}>{al.name}</span>
+                          <span
+                            key={al.id}
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: radius.full,
+                              fontSize: font.size.xs,
+                              fontWeight: font.weight.semibold,
+                              background: CHIP_COLORS[al.code] ?? "#e2e3e5",
+                              color: colors.gray800,
+                            }}
+                          >
+                            {al.name}
+                          </span>
                         ))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </Table>
+            </Section>
           )}
-        </div>
+        </Card>
       ) : (
-        <div style={{ ...card, color: "#6c757d", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>No active version.</span>
-          <button onClick={() => navigate(`/kitchen/dishes/${id}/versions/new`)} style={outlineBtn}>New Version</button>
-        </div>
+        <Card style={{
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+        }}>
+          <span style={{ color: colors.textMuted, fontSize: font.size.base }}>
+            No active version for this dish yet.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/kitchen/dishes/${id}/versions/new`)}
+            icon={<Plus size={14} />}
+          >
+            New Version
+          </Button>
+        </Card>
       )}
 
       {/* Version list */}
-      <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", marginTop: "1.75rem" }}>All Versions</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-        <thead>
-          <tr style={{ borderBottom: "2px solid #dee2e6" }}>
-            <th style={th}>Ver.</th><th style={th}>Name</th><th style={th}>Status</th>
-            <th style={th}>Effective From</th><th style={th}>Cost</th><th style={th}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {versions.map((v) => (
-            <tr key={v.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-              <td style={td}>v{v.version_number}</td>
-              <td style={td}>{v.name}</td>
-              <td style={td}><StatusBadge status={v.status} /></td>
-              <td style={td}>{v.effective_from}</td>
-              <td style={td}>${parseFloat(v.per_serving_cost).toFixed(2)}</td>
-              <td style={{ ...td, display: "flex", gap: "0.5rem" }}>
-                {v.status === "DRAFT" && (
-                  <button onClick={() => { setActError(null); setActivating(v); }} style={activateBtn}>Activate</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        margin: "1.5rem 0 0.85rem",
+      }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: font.size.lg,
+          fontWeight: font.weight.semibold,
+          color: colors.text,
+          letterSpacing: font.tracking.tight,
+        }}>
+          Version History
+        </h3>
+        <span style={{ fontSize: font.size.sm, color: colors.textMuted }}>
+          {versions.length} total
+        </span>
+      </div>
 
-      {/* Activate dialog */}
-      {activating && (
-        <div style={overlay}>
-          <div style={modalBox}>
-            <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem" }}>Activate Version v{activating.version_number}?</h3>
-            <p style={{ color: "#495057", fontSize: "0.9rem" }}>
-              This will supersede the current active version. Proceed?
-            </p>
-            {actError && <div style={{ background: "#f8d7da", color: "#842029", padding: "8px 12px", borderRadius: "6px", marginBottom: "0.75rem" }}>{actError}</div>}
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setActivating(null)} style={outlineBtn}>Cancel</button>
-              <button onClick={() => handleActivate(activating)} disabled={actLoading} style={primaryBtn}>
-                {actLoading ? "Activating…" : "Activate"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Table columns={["Ver.", "Name", "Status", "Effective From", "Cost", ""]}>
+        {versions.map((v) => (
+          <Tr key={v.id}>
+            <Td style={{
+              fontVariantNumeric: "tabular-nums",
+              fontFamily: font.familyMono,
+              fontWeight: font.weight.semibold,
+              color: colors.text,
+            }}>
+              v{v.version_number}
+            </Td>
+            <Td style={{ color: colors.textSecondary }}>{v.name}</Td>
+            <Td><StatusBadge status={v.status} /></Td>
+            <Td style={{ color: colors.textSecondary, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+              {v.effective_from}
+            </Td>
+            <Td style={{
+              fontVariantNumeric: "tabular-nums",
+              fontFamily: font.familyMono,
+              fontSize: font.size.sm,
+              color: colors.text,
+            }}>
+              ${parseFloat(v.per_serving_cost).toFixed(2)}
+            </Td>
+            <Td>
+              {v.status === "DRAFT" && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => { setActError(null); setActivating(v); }}
+                  >
+                    Activate
+                  </Button>
+                </div>
+              )}
+            </Td>
+          </Tr>
+        ))}
+      </Table>
+
+      {/* Activate modal */}
+      <Modal
+        open={!!activating}
+        onClose={() => setActivating(null)}
+        title={activating ? `Activate Version v${activating.version_number}?` : ""}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setActivating(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => activating && handleActivate(activating)}
+              loading={actLoading}
+            >
+              Activate
+            </Button>
+          </>
+        }
+      >
+        <p style={{ color: colors.textSecondary, fontSize: font.size.base, margin: "0 0 0.75rem" }}>
+          This will supersede the current active version. Proceed?
+        </p>
+        {actError && <AlertBanner type="error" message={actError} />}
+      </Modal>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Section({ title, children, noBottomMargin }: {
+  title: string;
+  children: React.ReactNode;
+  noBottomMargin?: boolean;
+}) {
   return (
-    <div>
-      <div style={{ fontSize: "0.75rem", color: "#6c757d", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-      <div style={{ fontSize: "1.05rem", fontWeight: 600, marginTop: "2px" }}>{value}</div>
+    <div style={{ marginBottom: noBottomMargin ? 0 : "1.5rem" }}>
+      <h4 style={{
+        margin: "0 0 0.6rem",
+        fontSize: font.size.xs,
+        fontWeight: font.weight.semibold,
+        color: colors.textMuted,
+        textTransform: "uppercase",
+        letterSpacing: font.tracking.wider,
+      }}>
+        {title}
+      </h4>
+      {children}
     </div>
   );
 }
 
-function NutStat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div style={{ textAlign: "center", padding: "0.5rem", border: "1px solid #dee2e6", borderRadius: "6px" }}>
-      <div style={{ fontSize: "0.75rem", color: "#6c757d" }}>{label}</div>
-      <div style={{ fontWeight: 600, fontSize: "1rem" }}>{value}</div>
+    <div style={{
+      padding: "0.85rem 1rem",
+      borderRadius: radius.md,
+      background: colors.surfaceAlt,
+      border: `1px solid ${colors.border}`,
+    }}>
+      <div style={{
+        fontSize: font.size.xs,
+        color: colors.textMuted,
+        textTransform: "uppercase",
+        letterSpacing: font.tracking.wider,
+        fontWeight: font.weight.semibold,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontSize: font.size.lg,
+        fontWeight: font.weight.bold,
+        color: colors.text,
+        marginTop: "4px",
+        letterSpacing: font.tracking.tight,
+        fontFamily: mono ? font.familyMono : font.family,
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        {value}
+      </div>
     </div>
   );
 }
 
-const card: React.CSSProperties       = { border: "1px solid #dee2e6", borderRadius: "8px", padding: "1.25rem", marginBottom: "1rem" };
-const primaryBtn: React.CSSProperties = { padding: "8px 16px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 };
-const outlineBtn: React.CSSProperties = { padding: "7px 14px", background: "#fff", color: "#0d6efd", border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const backBtn: React.CSSProperties    = { padding: "6px 12px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const activateBtn: React.CSSProperties = { padding: "4px 10px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "5px", cursor: "pointer", fontSize: "0.8rem" };
-const subHead: React.CSSProperties    = { margin: "0 0 0.5rem", fontSize: "0.85rem", fontWeight: 600, color: "#495057", textTransform: "uppercase", letterSpacing: "0.04em" };
-const th: React.CSSProperties         = { padding: "8px 10px", fontWeight: 600, fontSize: "0.78rem", color: "#495057", textTransform: "uppercase" as const, textAlign: "left" as const };
-const td: React.CSSProperties         = { padding: "8px 10px", verticalAlign: "middle" };
-const overlay: React.CSSProperties    = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 };
-const modalBox: React.CSSProperties   = { background: "#fff", borderRadius: "10px", padding: "1.5rem", maxWidth: "420px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" };
+function NutStat({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <div style={{
+      textAlign: "center",
+      padding: "0.7rem 0.5rem",
+      border: `1px solid ${colors.border}`,
+      borderRadius: radius.md,
+      background: colors.surfaceAlt,
+    }}>
+      <div style={{
+        fontSize: font.size.xs,
+        color: colors.textMuted,
+        fontWeight: font.weight.semibold,
+        textTransform: "uppercase",
+        letterSpacing: font.tracking.wider,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        fontWeight: font.weight.bold,
+        fontSize: font.size.lg,
+        color: colors.text,
+        marginTop: "3px",
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        {value}
+        <span style={{
+          fontSize: font.size.xs,
+          color: colors.textMuted,
+          fontWeight: font.weight.medium,
+          marginLeft: "3px",
+        }}>
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
+}

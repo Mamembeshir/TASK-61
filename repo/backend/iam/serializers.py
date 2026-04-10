@@ -82,7 +82,7 @@ class RegisterSerializer(serializers.Serializer):
     # ---- Optional sensitive fields ----
     government_id = serializers.CharField(max_length=50, required=False,
                                           allow_blank=True, write_only=True)
-    photo_id      = serializers.FileField(required=False, allow_null=True)
+    photo_id      = serializers.FileField(required=True)
 
     # ------------------------------------------------------------------
     # Field-level validators

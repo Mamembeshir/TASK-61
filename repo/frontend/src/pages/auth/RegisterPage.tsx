@@ -41,11 +41,15 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!photoId) {
+      setError("A photo ID is required to complete registration.");
+      return;
+    }
     setLoading(true);
     try {
       await authApi.register({
         ...form,
-        photoId:      photoId ?? undefined,
+        photoId,
         governmentId: form.governmentId || undefined,
       });
       setSuccess(true);
@@ -193,8 +197,8 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Two-column name row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          {/* Two-column name row — collapses to single column on phones */}
+          <div className="hb-stack-sm" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
             {textFields.slice(0, 2).map(f => (
               <div key={f.key}>
                 <label style={labelStyle}>{f.label}</label>
@@ -248,11 +252,13 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Photo ID upload (optional) */}
+          {/* Photo ID upload (required) */}
           <div>
             <label style={labelStyle}>
               Photo ID{" "}
-              <span style={{ color: colors.textMuted, fontWeight: font.weight.normal }}>(optional — JPEG, PNG, or PDF, max 10 MB)</span>
+              <span style={{ color: colors.danger, fontWeight: font.weight.normal }}>*</span>
+              {" "}
+              <span style={{ color: colors.textMuted, fontWeight: font.weight.normal }}>(JPEG, PNG, or PDF, max 10 MB)</span>
             </label>
             {photoId ? (
               <div style={{

@@ -6,7 +6,7 @@ import {
   ClipboardList, Calendar, CheckSquare, Bell, BarChart2, Webhook,
   Truck, LogOut, ChevronLeft, ChevronRight, Shield, Building2,
 } from "lucide-react";
-import { colors, radius, transition, font } from "@/styles/tokens";
+import { colors, radius, transition, font, gradients } from "@/styles/tokens";
 
 // ---------------------------------------------------------------------------
 // Nav item definition
@@ -65,32 +65,33 @@ const COURIER_NAV: NavItem[] = [
 // Widths
 // ---------------------------------------------------------------------------
 
-const SIDEBAR_W = 224;
-const SIDEBAR_COLLAPSED_W = 60;
+const SIDEBAR_W = 240;
+const SIDEBAR_COLLAPSED_W = 68;
 
 // ---------------------------------------------------------------------------
 // Role avatar (small colored circle with initial)
 // ---------------------------------------------------------------------------
 
 const ROLE_ACCENT: Record<string, string> = {
-  ADMIN:   colors.primary,
-  STAFF:   colors.info,
-  COURIER: "#7C3AED",
+  ADMIN:   "#818CF8",   // indigo-400, reads well on dark sidebar
+  STAFF:   "#60A5FA",   // blue-400
+  COURIER: "#A78BFA",   // violet-400
 };
 
 function RoleAvatar({ role, name }: { role: string; name: string }) {
-  const bg = ROLE_ACCENT[role] ?? colors.primary;
+  const bg = ROLE_ACCENT[role] ?? "#818CF8";
   const initial = (name?.[0] ?? "?").toUpperCase();
   return (
     <div style={{
-      width: 32, height: 32, borderRadius: radius.full,
-      background: bg + "33",
-      border: `1.5px solid ${bg}55`,
-      color: bg,
+      width: 34, height: 34, borderRadius: radius.full,
+      background: `linear-gradient(135deg, ${bg}3a 0%, ${bg}1a 100%)`,
+      border: `1px solid ${bg}55`,
+      color: "#fff",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontWeight: font.weight.bold,
       fontSize: font.size.sm,
       flexShrink: 0,
+      boxShadow: `0 2px 8px -2px ${bg}44`,
     }}>
       {initial}
     </div>
@@ -120,7 +121,7 @@ export default function Sidebar() {
   function toggleGroup(label: string) {
     setOpenGroups(prev => {
       const next = new Set(prev);
-      next.has(label) ? next.delete(label) : next.add(label);
+      if (next.has(label)) next.delete(label); else next.add(label);
       return next;
     });
   }
@@ -137,15 +138,18 @@ export default function Sidebar() {
     return {
       display: "flex",
       alignItems: "center",
-      gap: "0.625rem",
-      padding: collapsed ? "9px 0" : "8px 12px",
+      gap: "0.7rem",
+      padding: collapsed ? "10px 0" : "9px 12px",
       borderRadius: radius.md,
       color: isActive ? "#fff" : colors.sidebarText,
       textDecoration: "none",
       fontSize: font.size.sm,
-      fontWeight: isActive ? font.weight.semibold : font.weight.normal,
-      background: isActive ? colors.sidebarActive : "transparent",
-      transition: `background ${transition.base}, color ${transition.base}`,
+      fontWeight: isActive ? font.weight.semibold : font.weight.medium,
+      background: isActive
+        ? "linear-gradient(135deg, rgba(99,102,241,0.22) 0%, rgba(124,58,237,0.18) 100%)"
+        : "transparent",
+      boxShadow: isActive ? "inset 0 0 0 1px rgba(129,140,248,0.22)" : "none",
+      transition: `background ${transition.base}, color ${transition.base}, box-shadow ${transition.base}`,
       cursor: "pointer",
       border: "none",
       width: "100%",
@@ -157,19 +161,22 @@ export default function Sidebar() {
   }
 
   return (
-    <aside style={{
-      width: `${w}px`,
-      minWidth: `${w}px`,
-      height: "100vh",
-      position: "sticky",
-      top: 0,
-      background: colors.sidebarBg,
-      display: "flex",
-      flexDirection: "column",
-      transition: `width ${transition.slow}, min-width ${transition.slow}`,
-      overflow: "hidden",
-      zIndex: 100,
-      flexShrink: 0,
+    <aside
+      className="hb-sidebar-scroll"
+      style={{
+        width: `${w}px`,
+        minWidth: `${w}px`,
+        height: "100vh",
+        position: "sticky",
+        top: 0,
+        background: gradients.sidebar,
+        display: "flex",
+        flexDirection: "column",
+        transition: `width ${transition.slow}, min-width ${transition.slow}`,
+        overflow: "hidden",
+        zIndex: 100,
+        flexShrink: 0,
+        borderRight: "1px solid rgba(255,255,255,0.04)",
     }}>
 
       {/* ── Brand header ─────────────────────────────────────────────── */}
@@ -177,27 +184,28 @@ export default function Sidebar() {
         display: "flex",
         alignItems: "center",
         justifyContent: collapsed ? "center" : "space-between",
-        padding: collapsed ? "18px 0" : "18px 16px",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: collapsed ? "20px 0" : "20px 18px",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
         flexShrink: 0,
-        minHeight: 60,
+        minHeight: 68,
       }}>
         {!collapsed && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
             <div style={{
-              width: 28, height: 28, borderRadius: radius.sm,
-              background: colors.primary,
+              width: 32, height: 32, borderRadius: radius.md,
+              background: gradients.primary,
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
+              boxShadow: "0 4px 12px -2px rgba(79,70,229,0.5), inset 0 1px 0 rgba(255,255,255,0.25)",
             }}>
-              <Shield size={15} color="#fff" />
+              <Shield size={16} color="#fff" />
             </div>
             <span style={{
               fontWeight: font.weight.bold,
               fontSize: font.size.lg,
               color: "#fff",
               whiteSpace: "nowrap",
-              letterSpacing: "-0.01em",
+              letterSpacing: font.tracking.tight,
             }}>
               HarborOps
             </span>
@@ -207,21 +215,27 @@ export default function Sidebar() {
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           style={{
-            background: "rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.08)",
             borderRadius: radius.sm,
-            color: colors.sidebarText,
+            color: "rgba(255,255,255,0.65)",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             flexShrink: 0,
-            transition: `background ${transition.base}`,
+            transition: `background ${transition.base}, color ${transition.base}`,
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.12)";
+            (e.currentTarget as HTMLElement).style.color = "#fff";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.65)";
+          }}
         >
           {collapsed
             ? <ChevronRight size={14} />
@@ -231,13 +245,13 @@ export default function Sidebar() {
       </div>
 
       {/* ── Nav items ────────────────────────────────────────────────── */}
-      <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto", overflowX: "hidden" }}>
+      <nav style={{ flex: 1, padding: "12px 10px", overflowY: "auto", overflowX: "hidden" }}>
         {navItems.map(item => {
           if (item.children) {
             const isOpen = openGroups.has(item.label);
             return (
-              <div key={item.label} style={{ marginBottom: 2 }}>
-                {/* Group header — clicking navigates and toggles */}
+              <div key={item.label} style={{ marginBottom: 3 }}>
+                {/* Group header — clicking toggles */}
                 <button
                   onClick={() => toggleGroup(item.label)}
                   title={collapsed ? item.label : undefined}
@@ -256,9 +270,9 @@ export default function Sidebar() {
                     <>
                       <span style={{ flex: 1 }}>{item.label}</span>
                       <span style={{
-                        color: "rgba(255,255,255,0.3)",
+                        color: "rgba(255,255,255,0.32)",
                         transition: `transform ${transition.base}`,
-                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
                         display: "flex",
                       }}>
                         <ChevronRight size={13} />
@@ -270,11 +284,11 @@ export default function Sidebar() {
                 {/* Sub-items */}
                 {isOpen && !collapsed && (
                   <div style={{
-                    paddingLeft: 30,
+                    paddingLeft: 32,
                     paddingBottom: 4,
-                    borderLeft: "1.5px solid rgba(255,255,255,0.07)",
-                    marginLeft: 21,
-                    marginTop: 2,
+                    borderLeft: "1.5px solid rgba(255,255,255,0.06)",
+                    marginLeft: 22,
+                    marginTop: 3,
                   }}>
                     {item.children.map(child => (
                       <NavLink
@@ -283,13 +297,13 @@ export default function Sidebar() {
                         style={({ isActive }) => ({
                           display: "flex",
                           alignItems: "center",
-                          gap: "0.5rem",
-                          padding: "6px 10px",
+                          gap: "0.55rem",
+                          padding: "6px 11px",
                           borderRadius: radius.sm,
-                          color: isActive ? colors.sidebarTextActive : "rgba(255,255,255,0.5)",
+                          color: isActive ? "#fff" : "rgba(255,255,255,0.5)",
                           fontSize: font.size.xs,
-                          fontWeight: isActive ? font.weight.semibold : font.weight.normal,
-                          background: isActive ? "rgba(99,102,241,0.15)" : "transparent",
+                          fontWeight: isActive ? font.weight.semibold : font.weight.medium,
+                          background: isActive ? "rgba(99,102,241,0.18)" : "transparent",
                           textDecoration: "none",
                           transition: `background ${transition.base}, color ${transition.base}`,
                           marginBottom: 1,
@@ -307,7 +321,7 @@ export default function Sidebar() {
                           }
                         }}
                       >
-                        {child.icon && <span style={{ opacity: 0.7 }}>{child.icon}</span>}
+                        {child.icon && <span style={{ opacity: 0.75 }}>{child.icon}</span>}
                         {child.label}
                       </NavLink>
                     ))}
@@ -323,17 +337,17 @@ export default function Sidebar() {
               to={item.to}
               end={item.to === "/dashboard" || item.to === "/courier"}
               title={collapsed ? item.label : undefined}
-              style={({ isActive }) => linkStyle(isActive)}
+              style={({ isActive }) => ({ ...linkStyle(isActive), marginBottom: 3 })}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLElement;
-                if (!el.style.background.includes("99,102,241")) {
+                if (!el.style.background.includes("99,102,241") && !el.style.background.includes("124,58,237")) {
                   el.style.background = colors.sidebarHover;
                   el.style.color = "#fff";
                 }
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget as HTMLElement;
-                if (!el.style.background.includes("99,102,241")) {
+                if (!el.style.background.includes("99,102,241") && !el.style.background.includes("124,58,237")) {
                   el.style.background = "transparent";
                   el.style.color = colors.sidebarText;
                 }
@@ -348,40 +362,46 @@ export default function Sidebar() {
 
       {/* ── User footer ──────────────────────────────────────────────── */}
       <div style={{
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        padding: collapsed ? "12px 0" : "12px 8px",
+        borderTop: "1px solid rgba(255,255,255,0.05)",
+        padding: collapsed ? "12px 0" : "12px 10px",
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
         gap: 4,
+        background: "rgba(0,0,0,0.18)",
       }}>
         {/* User info row */}
         {!collapsed && currentUser && (
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.625rem",
-            padding: "6px 10px",
+            gap: "0.7rem",
+            padding: "8px 10px",
             borderRadius: radius.md,
             marginBottom: 4,
+            background: "rgba(255,255,255,0.025)",
+            border: "1px solid rgba(255,255,255,0.04)",
           }}>
             <RoleAvatar role={role} name={displayName} />
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{
                 fontSize: font.size.sm,
                 fontWeight: font.weight.semibold,
-                color: colors.sidebarTextActive,
+                color: "#fff",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                lineHeight: 1.3,
               }}>
                 {displayName}
               </div>
               <div style={{
                 fontSize: font.size.xs,
-                color: "rgba(255,255,255,0.35)",
+                color: "rgba(255,255,255,0.42)",
                 textTransform: "capitalize",
                 letterSpacing: "0.02em",
+                lineHeight: 1.3,
+                marginTop: 1,
               }}>
                 {role.toLowerCase()}
               </div>
@@ -395,7 +415,7 @@ export default function Sidebar() {
           title={collapsed ? "Sign out" : undefined}
           style={linkStyle(false)}
           onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.12)";
+            (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.13)";
             (e.currentTarget as HTMLElement).style.color = "#FCA5A5";
           }}
           onMouseLeave={e => {

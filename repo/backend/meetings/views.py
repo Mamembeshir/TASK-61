@@ -25,6 +25,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from core.exceptions import UnprocessableEntity
 from core.models     import AuditLog
+from core.pagination import paginate_list
 from meetings.models import (
     Meeting,
     AgendaItem,
@@ -120,11 +121,17 @@ def _save_attachment(meeting_id, uploaded_file):
     Only the extension (validated against an allowlist) is taken from the
     basename of the original name; the stored filename is a UUID.
     """
-    # Strip any directory components the client may have injected
-    safe_basename = os.path.basename(uploaded_file.name)
-    # Reject names that still contain a path separator after basename (shouldn't
-    # happen on any sane OS, but belt-and-suspenders)
-    if os.sep in safe_basename or (os.altsep and os.altsep in safe_basename):
+    original_name = uploaded_file.name or ""
+
+    # Reject null bytes, forward/back slashes, and empty names up-front.
+    # Slashes in a multipart filename are never legitimate — they indicate
+    # a path traversal attempt.  Null bytes truncate paths on C filesystems.
+    if not original_name or "\x00" in original_name or "/" in original_name or "\\" in original_name:
+        raise UnprocessableEntity("Invalid attachment filename.")
+
+    # Strip any residual directory components (belt-and-suspenders)
+    safe_basename = os.path.basename(original_name)
+    if not safe_basename or os.sep in safe_basename or (os.altsep and os.altsep in safe_basename):
         raise UnprocessableEntity("Invalid attachment filename.")
 
     ext = safe_basename.rsplit(".", 1)[-1].lower() if "." in safe_basename else ""
@@ -189,9 +196,8 @@ class MeetingListCreateView(APIView):
         if site_id:
             qs = qs.filter(site_id=site_id)
 
-        qs = qs.select_related("site").prefetch_related("resolutions")
-        serializer = MeetingListSerializer(qs, many=True)
-        return Response(serializer.data)
+        qs = qs.select_related("site").prefetch_related("resolutions").order_by("-created_at")
+        return paginate_list(request, qs, MeetingListSerializer)
 
     @transaction.atomic
     def post(self, request):
@@ -363,7 +369,7 @@ class AgendaItemListCreateView(APIView):
     def get(self, request, pk):
         meeting = _get_meeting(request, pk)
         items = meeting.agenda_items.select_related("submitted_by").order_by("sort_order", "created_at")
-        return Response(AgendaItemSerializer(items, many=True).data)
+        return paginate_list(request, items, AgendaItemSerializer, ordering=["sort_order", "created_at"])
 
     @transaction.atomic
     def post(self, request, pk):

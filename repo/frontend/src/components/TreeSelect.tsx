@@ -1,4 +1,5 @@
 import type { Classification } from "@/api/assets";
+import { selectStyle } from "@/styles/forms";
 
 interface Props {
   classifications: Classification[];
@@ -30,10 +31,9 @@ export default function TreeSelect({
       onChange={(e) => onChange(e.target.value)}
       disabled={disabled}
       style={{
-        padding: "6px 10px",
-        border: "1px solid #ced4da",
-        borderRadius: "6px",
-        fontSize: "0.9rem",
+        ...selectStyle,
+        width: "auto",
+        minWidth: 200,
         ...style,
       }}
     >

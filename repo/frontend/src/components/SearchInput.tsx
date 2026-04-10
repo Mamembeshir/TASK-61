@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { Search, X } from "lucide-react";
+import { colors, radius, font, shadows } from "@/styles/tokens";
 
 interface Props {
   value: string;
@@ -36,31 +38,70 @@ export default function SearchInput({
   }
 
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+    <div style={{
+      position: "relative",
+      display: "inline-flex",
+      alignItems: "center",
+      width: "100%",
+      minWidth: 220,
+    }}>
+      <Search
+        size={15}
+        color={colors.textMuted}
+        style={{
+          position: "absolute",
+          left: 12,
+          pointerEvents: "none",
+        }}
+      />
       <input
         value={local}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         style={{
-          padding: "6px 32px 6px 10px",
-          border: "1px solid #ced4da",
-          borderRadius: "6px",
-          fontSize: "0.9rem",
-          minWidth: "200px",
+          width: "100%",
+          padding: "9px 34px 9px 34px",
+          border: `1px solid ${colors.border}`,
+          borderRadius: radius.md,
+          fontSize: font.size.base,
+          fontFamily: font.family,
+          color: colors.text,
+          background: colors.surface,
+          boxShadow: shadows.xs,
+          outline: "none",
+          transition: "border-color 0.18s cubic-bezier(0.4,0,0.2,1), box-shadow 0.18s cubic-bezier(0.4,0,0.2,1)",
         }}
       />
       {local && (
         <button
           onClick={clear}
           style={{
-            position: "absolute", right: "8px",
-            background: "none", border: "none",
-            cursor: "pointer", color: "#6c757d",
-            fontSize: "1rem", lineHeight: 1, padding: 0,
+            position: "absolute",
+            right: 8,
+            background: colors.gray100,
+            border: "none",
+            cursor: "pointer",
+            color: colors.textSecondary,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            transition: "background 0.15s ease, color 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = colors.gray200;
+            e.currentTarget.style.color = colors.text;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = colors.gray100;
+            e.currentTarget.style.color = colors.textSecondary;
           }}
           title="Clear"
         >
-          ×
+          <X size={12} />
         </button>
       )}
     </div>

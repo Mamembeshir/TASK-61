@@ -50,8 +50,8 @@ class Recipe(models.Model):
 
     @property
     def active_version(self):
-        """Return the single ACTIVE version, or None."""
-        return self.versions.filter(status=RecipeVersion.Status.ACTIVE).first()
+        """Return the tenant-wide (site=None) ACTIVE version, or None."""
+        return self.versions.filter(status=RecipeVersion.Status.ACTIVE, site=None).first()
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +71,14 @@ class RecipeVersion(models.Model):
         Recipe,
         on_delete=models.CASCADE,
         related_name="versions",
+    )
+    site           = models.ForeignKey(
+        "tenants.Site",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="recipe_versions",
+        help_text="Scope this version to a specific site. Null means tenant-wide.",
     )
     version_number = models.PositiveIntegerField()
     effective_from = models.DateField()
@@ -98,9 +106,9 @@ class RecipeVersion(models.Model):
         ordering = ["-version_number"]
         constraints = [
             models.UniqueConstraint(
-                fields=["recipe"],
+                fields=["recipe", "site"],
                 condition=models.Q(status="ACTIVE"),
-                name="uq_recipe_one_active_version",
+                name="uq_recipe_site_one_active_version",
             ),
             models.UniqueConstraint(
                 fields=["recipe", "version_number"],
@@ -132,9 +140,16 @@ class RecipeVersion(models.Model):
     @transaction.atomic
     def activate(self):
         """
-        Transition self (DRAFT) → ACTIVE.
+        Transition self (DRAFT) → ACTIVE, scoped to (recipe, site).
 
-        If a currently ACTIVE version exists:
+        Activation mode policy — a recipe must use either tenant-wide OR per-site
+        versioning, never both simultaneously:
+          - site=None (tenant-wide): rejected if any site-specific ACTIVE version
+            already exists for this recipe.
+          - site=<X> (site-scoped): rejected if a site=None ACTIVE version already
+            exists for this recipe.
+
+        If a currently ACTIVE version exists for the same (recipe, site):
           1. self.effective_from must be strictly after that version's effective_from.
           2. Supersede that version: status → SUPERSEDED, effective_to = self.effective_from - 1 day.
         Then set self → ACTIVE.
@@ -144,13 +159,38 @@ class RecipeVersion(models.Model):
                 f"Only DRAFT versions can be activated (current status: {self.status})."
             )
 
-        # Lock the recipe row to prevent concurrent activations
+        # Lock the recipe row to prevent concurrent activations for this recipe+site
         recipe = Recipe.objects.select_for_update().get(pk=self.recipe_id)
+
+        # Enforce activation-mode consistency (no mixing tenant-wide and site-scoped)
+        if self.site is None:
+            conflicting = (
+                RecipeVersion.objects
+                .filter(recipe=recipe, status=self.Status.ACTIVE)
+                .exclude(site=None)
+                .exists()
+            )
+            if conflicting:
+                raise UnprocessableEntity(
+                    "Cannot activate a tenant-wide version while site-scoped active "
+                    "versions exist for this recipe. Use site-scoped activation instead."
+                )
+        else:
+            conflicting = (
+                RecipeVersion.objects
+                .filter(recipe=recipe, site=None, status=self.Status.ACTIVE)
+                .exists()
+            )
+            if conflicting:
+                raise UnprocessableEntity(
+                    "Cannot activate a site-scoped version while a tenant-wide active "
+                    "version exists for this recipe. Use tenant-wide activation instead."
+                )
 
         current_active = (
             RecipeVersion.objects
             .select_for_update()
-            .filter(recipe=recipe, status=self.Status.ACTIVE)
+            .filter(recipe=recipe, site=self.site, status=self.Status.ACTIVE)
             .first()
         )
 

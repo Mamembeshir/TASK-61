@@ -8,10 +8,10 @@ API tests for:
 """
 import pytest
 from rest_framework.test import APIClient
-from rest_framework.authtoken.models import Token
 
 from core.models import AuditLog
 from iam.factories import TenantFactory, SiteFactory, UserFactory, AdminUserFactory
+from tests.signed_client import make_signed_client
 
 
 pytestmark = [pytest.mark.api, pytest.mark.django_db]
@@ -21,11 +21,7 @@ pytestmark = [pytest.mark.api, pytest.mark.django_db]
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_client(user):
-    token, _ = Token.objects.get_or_create(user=user)
-    client = APIClient()
-    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-    return client
+make_client = make_signed_client
 
 
 def create_audit_entries(tenant, count, entity_type="Asset"):
@@ -101,11 +97,12 @@ class TestAuditLogView:
 
     # ---- response shape ----------------------------------------------------
 
-    def test_returns_list(self):
+    def test_returns_paginated_response(self):
         tenant = TenantFactory()
         user = AdminUserFactory(tenant=tenant)
         resp = make_client(user).get("/api/v1/core/audit-log/")
-        assert isinstance(resp.data, list)
+        assert isinstance(resp.data, dict)
+        assert "results" in resp.data
 
     def test_entry_has_expected_keys(self):
         tenant = TenantFactory()
@@ -113,26 +110,17 @@ class TestAuditLogView:
         user = AdminUserFactory(tenant=tenant)
         resp = make_client(user).get("/api/v1/core/audit-log/")
         assert resp.status_code == 200
-        assert len(resp.data) >= 1
-        entry = resp.data[0]
+        assert len(resp.data["results"]) >= 1
+        entry = resp.data["results"][0]
         for key in ("id", "entity_type", "entity_id", "action", "actor_username", "timestamp"):
             assert key in entry, f"Missing key: {key}"
-
-    # ---- capped at 20 entries ----------------------------------------------
-
-    def test_returns_at_most_20_entries(self):
-        tenant = TenantFactory()
-        create_audit_entries(tenant, count=25)
-        user = AdminUserFactory(tenant=tenant)
-        resp = make_client(user).get("/api/v1/core/audit-log/")
-        assert len(resp.data) <= 20
 
     def test_entries_ordered_newest_first(self):
         tenant = TenantFactory()
         create_audit_entries(tenant, count=3)
         user = AdminUserFactory(tenant=tenant)
         resp = make_client(user).get("/api/v1/core/audit-log/")
-        timestamps = [e["timestamp"] for e in resp.data]
+        timestamps = [e["timestamp"] for e in resp.data["results"]]
         assert timestamps == sorted(timestamps, reverse=True)
 
     # ---- tenant isolation --------------------------------------------------
@@ -145,7 +133,7 @@ class TestAuditLogView:
 
         user_a = AdminUserFactory(tenant=tenant_a)
         resp = make_client(user_a).get("/api/v1/core/audit-log/")
-        entity_types = {e["entity_type"] for e in resp.data}
+        entity_types = {e["entity_type"] for e in resp.data["results"]}
         assert "AssetA" in entity_types
         assert "AssetB" not in entity_types
 
@@ -154,7 +142,7 @@ class TestAuditLogView:
         user = AdminUserFactory(tenant=tenant)
         resp = make_client(user).get("/api/v1/core/audit-log/")
         assert resp.status_code == 200
-        assert resp.data == []
+        assert resp.data["results"] == []
 
     # ---- multiple entity types in one response ------------------------------
 
@@ -173,5 +161,5 @@ class TestAuditLogView:
             )
         user = AdminUserFactory(tenant=tenant)
         resp = make_client(user).get("/api/v1/core/audit-log/")
-        entity_types = {e["entity_type"] for e in resp.data}
+        entity_types = {e["entity_type"] for e in resp.data["results"]}
         assert {"Asset", "Meeting", "Menu"} <= entity_types

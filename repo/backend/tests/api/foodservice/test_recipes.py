@@ -338,3 +338,91 @@ class TestValidation:
         )
         resp = admin_client.post(BASE, data=payload, format="json")
         assert_status(resp, 422)
+
+
+# ---------------------------------------------------------------------------
+# 8. Site-scoping activation-mode consistency
+# ---------------------------------------------------------------------------
+
+class TestActivationModeMixingRejected:
+    """
+    A recipe cannot have both tenant-wide (site=None) and site-scoped ACTIVE
+    versions simultaneously.  activate() must reject the conflicting call with 422.
+    """
+
+    def _make_recipe_with_two_draft_versions(self, admin_client):
+        """Create a recipe with v1 already in it; return (recipe_id, v1, url_base)."""
+        resp = admin_client.post(BASE, data=recipe_payload(effective_from=TODAY), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        v1 = recipe.versions.first()
+        url = f"{BASE}{recipe_id}/versions/"
+        return recipe_id, v1, url
+
+    def test_site_scoped_activation_after_tenant_wide_returns_422(
+        self, admin_client, site, assert_status
+    ):
+        """Activating site-scoped v2 while v1 is tenant-wide ACTIVE → 422."""
+        recipe_id, v1, versions_url = self._make_recipe_with_two_draft_versions(admin_client)
+
+        # Activate v1 tenant-wide (site=None)
+        resp = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{v1.pk}/activate/",
+            format="json",
+        )
+        assert_status(resp, 200)
+
+        # Create v2
+        resp2 = admin_client.post(
+            versions_url,
+            data=version_payload(effective_from=TOMORROW),
+            format="json",
+        )
+        assert_status(resp2, 201)
+        v2_id = resp2.json()["id"]
+
+        # Attempt to activate v2 for a specific site → must be rejected
+        resp3 = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{v2_id}/activate/",
+            data={"site_id": str(site.pk)},
+            format="json",
+        )
+        assert_status(resp3, 422)
+
+        # v1 remains ACTIVE
+        v1.refresh_from_db()
+        assert v1.status == RecipeVersion.Status.ACTIVE
+
+    def test_tenant_wide_activation_after_site_scoped_returns_422(
+        self, admin_client, site, assert_status
+    ):
+        """Activating tenant-wide v2 while v1 is site-scoped ACTIVE → 422."""
+        recipe_id, v1, versions_url = self._make_recipe_with_two_draft_versions(admin_client)
+
+        # Activate v1 for a specific site
+        resp = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{v1.pk}/activate/",
+            data={"site_id": str(site.pk)},
+            format="json",
+        )
+        assert_status(resp, 200)
+
+        # Create v2
+        resp2 = admin_client.post(
+            versions_url,
+            data=version_payload(effective_from=TOMORROW),
+            format="json",
+        )
+        assert_status(resp2, 201)
+        v2_id = resp2.json()["id"]
+
+        # Attempt to activate v2 tenant-wide (no site_id) → must be rejected
+        resp3 = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{v2_id}/activate/",
+            format="json",
+        )
+        assert_status(resp3, 422)
+
+        # v1 remains ACTIVE
+        v1.refresh_from_db()
+        assert v1.status == RecipeVersion.Status.ACTIVE

@@ -25,6 +25,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.exceptions import UnprocessableEntity
 from core.models     import AuditLog
+from core.pagination import paginate_list
 from integrations.models import Alert, WebhookEndpoint, WebhookDeliveryAttempt
 from integrations.serializers import (
     AlertSerializer,
@@ -117,9 +118,8 @@ class AlertListView(APIView):
         if severity_filter:
             qs = qs.filter(severity=severity_filter)
 
-        qs = qs.select_related("assigned_to", "acknowledged_by", "closed_by")
-        serializer = AlertListSerializer(qs, many=True)
-        return Response(serializer.data)
+        qs = qs.select_related("assigned_to", "acknowledged_by", "closed_by").order_by("-created_at")
+        return paginate_list(request, qs, AlertListSerializer)
 
 
 class AlertDetailView(APIView):

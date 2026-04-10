@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Utensils, Plus, Check } from "lucide-react";
 import { dishApi, allergenApi, type DishListItem, type Allergen } from "@/api/foodservice";
 import SearchInput from "@/components/SearchInput";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, EmptyState,
+  SkeletonTable, AlertBanner,
+} from "@/components/ui";
+import { colors, font, radius } from "@/styles/tokens";
 
 const CHIP_COLORS: Record<string, string> = {
   GLUTEN: "#fff3cd", MILK: "#d1e7dd", EGG: "#cfe2ff", PEANUT: "#f8d7da",
@@ -51,123 +57,202 @@ export default function DishesPage() {
   }
 
   const nonNone = allergens.filter((a) => a.code !== "NONE");
+  const activeFilters = include.size + exclude.size + (search ? 1 : 0);
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>Dishes</h2>
-        <button onClick={() => navigate("/kitchen/dishes/new")} style={primaryBtn}>+ New Dish</button>
-      </div>
+    <div>
+      <PageHeader
+        title="Dishes"
+        subtitle={loading
+          ? "Loading dishes…"
+          : `${dishes.length} dish${dishes.length === 1 ? "" : "es"} in your catalogue`}
+        icon={<Utensils size={22} />}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => navigate("/kitchen/dishes/new")}
+            icon={<Plus size={16} />}
+          >
+            New Dish
+          </Button>
+        }
+      />
 
       {/* Filters */}
-      <div style={{ marginBottom: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-        <SearchInput value={search} onChange={(v) => setSearch(v)} placeholder="Search dishes…" />
-        <div style={{ flex: 1, minWidth: "300px" }}>
-          <div style={{ fontSize: "0.8rem", color: "#6c757d", marginBottom: "4px" }}>
-            Include allergens (show only dishes with these):
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{ display: "flex", gap: "0.85rem", alignItems: "center", marginBottom: nonNone.length ? "0.85rem" : 0 }}>
+          <div style={{ flex: "1 1 260px", minWidth: 240 }}>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search dishes…" />
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-            {nonNone.map((a) => {
-              const on = include.has(a.id);
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => { const n = toggleFilter(include, a.id, exclude); setInclude(n); }}
-                  style={{
-                    padding: "3px 10px", borderRadius: "12px", border: on ? "2px solid #0d6efd" : "1px solid #ced4da",
-                    background: on ? "#cfe2ff" : "#f8f9fa", color: on ? "#084298" : "#495057",
-                    cursor: "pointer", fontSize: "0.78rem", fontWeight: on ? 600 : 400,
-                  }}
-                >
-                  {a.name}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "#6c757d", margin: "6px 0 4px" }}>
-            Exclude allergens (hide dishes with these):
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-            {nonNone.map((a) => {
-              const on = exclude.has(a.id);
-              return (
-                <button
-                  key={a.id}
-                  type="button"
-                  onClick={() => { const n = toggleFilter(exclude, a.id, include); setExclude(n); }}
-                  style={{
-                    padding: "3px 10px", borderRadius: "12px", border: on ? "2px solid #dc3545" : "1px solid #ced4da",
-                    background: on ? "#f8d7da" : "#f8f9fa", color: on ? "#842029" : "#495057",
-                    cursor: "pointer", fontSize: "0.78rem", fontWeight: on ? 600 : 400,
-                  }}
-                >
-                  {a.name}
-                </button>
-              );
-            })}
-          </div>
+          {activeFilters > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearch(""); setInclude(new Set()); setExclude(new Set()); }}
+            >
+              Clear all
+            </Button>
+          )}
         </div>
-      </div>
 
-      {error && <div style={errorBox}>{error}</div>}
+        {nonNone.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <AllergenFilterGroup
+              label="Include allergens"
+              hint="Show only dishes with these"
+              accent={colors.primary}
+              accentBg={colors.primaryLight}
+              accentText={colors.primary}
+              allergens={nonNone}
+              selected={include}
+              onToggle={(id) => setInclude(toggleFilter(include, id, exclude))}
+            />
+            <AllergenFilterGroup
+              label="Exclude allergens"
+              hint="Hide dishes with these"
+              accent={colors.danger}
+              accentBg={colors.dangerLight}
+              accentText={colors.dangerDark}
+              allergens={nonNone}
+              selected={exclude}
+              onToggle={(id) => setExclude(toggleFilter(exclude, id, include))}
+            />
+          </div>
+        )}
+      </Card>
+
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       {loading ? (
-        <p style={{ color: "#6c757d" }}>Loading…</p>
+        <SkeletonTable rows={6} cols={4} />
+      ) : dishes.length === 0 ? (
+        <Card padding="0">
+          <EmptyState
+            icon="🍽️"
+            title="No dishes found"
+            description={activeFilters > 0
+              ? "Try adjusting your filters, or create a new dish."
+              : "Create your first dish to start building menus."}
+            action={
+              <Button variant="primary" onClick={() => navigate("/kitchen/dishes/new")} icon={<Plus size={16} />}>
+                New Dish
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #dee2e6", textAlign: "left" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Cost</th>
-              <th style={th}>Allergens</th>
-              <th style={th}>Nutrition</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dishes.length === 0 ? (
-              <tr><td colSpan={4} style={{ padding: "1.5rem", textAlign: "center", color: "#6c757d" }}>No dishes found.</td></tr>
-            ) : dishes.map((d) => (
-              <tr
-                key={d.id}
-                onClick={() => navigate(`/kitchen/dishes/${d.id}`)}
-                style={{ borderBottom: "1px solid #dee2e6", cursor: "pointer" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-              >
-                <td style={{ ...td, fontWeight: 500 }}>{d.name ?? "—"}</td>
-                <td style={td}>{d.per_serving_cost ? `$${parseFloat(d.per_serving_cost).toFixed(2)}` : "—"}</td>
-                <td style={td}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                    {d.allergen_names.length === 0
-                      ? <span style={{ color: "#6c757d" }}>—</span>
-                      : d.allergen_names.map((name) => {
-                          const a = allergens.find((al) => al.name === name);
-                          const bg = CHIP_COLORS[a?.code ?? ""] ?? "#e2e3e5";
-                          return (
-                            <span key={name} style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "0.75rem", fontWeight: 500, background: bg }}>
-                              {name}
-                            </span>
-                          );
-                        })
-                    }
-                  </div>
-                </td>
-                <td style={td}>
-                  {d.has_nutrition
-                    ? <span style={{ color: "#0f5132" }}>✓</span>
-                    : <span style={{ color: "#6c757d" }}>—</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table columns={["Name", "Per-Serving Cost", "Allergens", "Nutrition"]}>
+          {dishes.map((d) => (
+            <Tr key={d.id} onClick={() => navigate(`/kitchen/dishes/${d.id}`)}>
+              <Td style={{ fontWeight: font.weight.semibold, color: colors.text }}>
+                {d.name ?? "—"}
+              </Td>
+              <Td style={{
+                color: colors.text,
+                fontVariantNumeric: "tabular-nums",
+                fontFamily: font.familyMono,
+                fontSize: font.size.sm,
+              }}>
+                {d.per_serving_cost ? `$${parseFloat(d.per_serving_cost).toFixed(2)}` : "—"}
+              </Td>
+              <Td>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  {d.allergen_names.length === 0 ? (
+                    <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>—</span>
+                  ) : d.allergen_names.map((name) => {
+                    const a = allergens.find((al) => al.name === name);
+                    const bg = CHIP_COLORS[a?.code ?? ""] ?? "#e2e3e5";
+                    return (
+                      <span
+                        key={name}
+                        style={{
+                          padding: "2px 9px",
+                          borderRadius: radius.full,
+                          fontSize: font.size.xs,
+                          fontWeight: font.weight.semibold,
+                          background: bg,
+                          color: colors.gray800,
+                        }}
+                      >
+                        {name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </Td>
+              <Td>
+                {d.has_nutrition ? (
+                  <span style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: colors.successDark,
+                    fontWeight: font.weight.semibold,
+                    fontSize: font.size.sm,
+                  }}>
+                    <Check size={14} /> Yes
+                  </span>
+                ) : (
+                  <span style={{ color: colors.textMuted, fontSize: font.size.sm }}>—</span>
+                )}
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
     </div>
   );
 }
 
-const primaryBtn: React.CSSProperties = { padding: "8px 16px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 };
-const errorBox: React.CSSProperties   = { background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" };
-const th: React.CSSProperties = { padding: "10px 12px", fontWeight: 600, fontSize: "0.82rem", color: "#495057", textTransform: "uppercase" as const, letterSpacing: "0.04em" };
-const td: React.CSSProperties = { padding: "10px 12px", verticalAlign: "middle" };
+function AllergenFilterGroup({
+  label, hint, accent, accentBg, accentText, allergens, selected, onToggle,
+}: {
+  label: string;
+  hint: string;
+  accent: string;
+  accentBg: string;
+  accentText: string;
+  allergens: Allergen[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div>
+      <div style={{
+        fontSize: font.size.xs,
+        color: colors.textMuted,
+        fontWeight: font.weight.semibold,
+        textTransform: "uppercase",
+        letterSpacing: font.tracking.wider,
+        marginBottom: "4px",
+      }}>
+        {label} <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: font.weight.normal }}>· {hint}</span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+        {allergens.map((a) => {
+          const on = selected.has(a.id);
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onToggle(a.id)}
+              style={{
+                padding: "3px 11px",
+                borderRadius: radius.full,
+                border: `1px solid ${on ? accent : colors.border}`,
+                background: on ? accentBg : colors.surfaceAlt,
+                color: on ? accentText : colors.textSecondary,
+                cursor: "pointer",
+                fontSize: font.size.xs,
+                fontWeight: on ? font.weight.semibold : font.weight.medium,
+                transition: "all 0.15s",
+              }}
+            >
+              {a.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

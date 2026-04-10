@@ -1,29 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Calendar, Plus } from "lucide-react";
 import { meetingApi, type MeetingListItem, type MeetingStatus } from "@/api/meetings";
 import { foodSiteApi, type FoodSite } from "@/api/foodservice";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, Badge, EmptyState,
+  SkeletonTable, AlertBanner, Modal, Field,
+} from "@/components/ui";
+import { inputStyle, selectStyle } from "@/styles/forms";
+import { colors, font, meetingStatusColors } from "@/styles/tokens";
 
 // ---------------------------------------------------------------------------
-// Status badge (local — meeting-specific colours)
+// Status badge
 // ---------------------------------------------------------------------------
 function MeetingStatusBadge({ status }: { status: MeetingStatus }) {
-  const cfg: Record<MeetingStatus, { bg: string; color: string; label: string }> = {
-    DRAFT:       { bg: "#e2e3e5", color: "#41464b",  label: "Draft" },
-    SCHEDULED:   { bg: "#cfe2ff", color: "#084298",  label: "Scheduled" },
-    IN_PROGRESS: { bg: "#fff3cd", color: "#856404",  label: "In Progress" },
-    COMPLETED:   { bg: "#d1e7dd", color: "#0f5132",  label: "Completed" },
-    CANCELLED:   { bg: "#f8d7da", color: "#842029",  label: "Cancelled" },
-  };
-  const c = cfg[status] ?? { bg: "#e2e3e5", color: "#41464b", label: status };
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: "12px",
-      fontSize: "0.75rem", fontWeight: 600, background: c.bg, color: c.color,
-      letterSpacing: "0.03em",
-    }}>
-      {c.label}
-    </span>
-  );
+  const cfg = meetingStatusColors[status] ?? { bg: colors.gray200, text: colors.gray700, label: status };
+  return <Badge bg={cfg.bg} text={cfg.text} label={cfg.label} dot />;
 }
 
 // ---------------------------------------------------------------------------
@@ -31,16 +23,17 @@ function MeetingStatusBadge({ status }: { status: MeetingStatus }) {
 // ---------------------------------------------------------------------------
 interface CreateModalProps {
   sites: FoodSite[];
+  open: boolean;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function CreateMeetingModal({ sites, onClose, onCreated }: CreateModalProps) {
-  const [title, setTitle]           = useState("");
+function CreateMeetingModal({ sites, open, onClose, onCreated }: CreateModalProps) {
+  const [title, setTitle]             = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [siteId, setSiteId]         = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
+  const [siteId, setSiteId]           = useState("");
+  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]             = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +47,10 @@ function CreateMeetingModal({ sites, onClose, onCreated }: CreateModalProps) {
         scheduled_at: scheduledAt,
         site_id: siteId || null,
       });
+      // Reset and close
+      setTitle("");
+      setScheduledAt("");
+      setSiteId("");
       onCreated();
     } catch (err: any) {
       setError(err.message ?? "Failed to create meeting.");
@@ -63,53 +60,49 @@ function CreateMeetingModal({ sites, onClose, onCreated }: CreateModalProps) {
   }
 
   return (
-    <div style={overlay} onClick={onClose}>
-      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ margin: "0 0 1.25rem", fontSize: "1.1rem", fontWeight: 700 }}>New Meeting</h3>
-        <form onSubmit={handleSubmit}>
-          <div style={fieldGroup}>
-            <label style={label}>Title <span style={{ color: "#dc3545" }}>*</span></label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Meeting title"
-              style={input}
-              autoFocus
-            />
-          </div>
-          <div style={fieldGroup}>
-            <label style={label}>Scheduled At <span style={{ color: "#dc3545" }}>*</span></label>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              style={input}
-            />
-          </div>
-          <div style={fieldGroup}>
-            <label style={label}>Site (optional)</label>
-            <select value={siteId} onChange={(e) => setSiteId(e.target.value)} style={input}>
-              <option value="">— No site —</option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          {error && (
-            <div style={{ background: "#f8d7da", color: "#842029", padding: "8px 12px", borderRadius: "6px", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
-              {error}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
-            <button type="button" onClick={onClose} style={outlineBtn}>Cancel</button>
-            <button type="submit" disabled={submitting} style={primaryBtn}>
-              {submitting ? "Creating…" : "Create Meeting"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="New Meeting"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSubmit} loading={submitting}>
+            Create Meeting
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <Field label="Title" required>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Meeting title"
+            style={inputStyle}
+            autoFocus
+          />
+        </Field>
+        <Field label="Scheduled At" required>
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Site" hint="Optional — leave blank for a general meeting.">
+          <select value={siteId} onChange={(e) => setSiteId(e.target.value)} style={selectStyle}>
+            <option value="">— No site —</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </Field>
+        {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
+      </form>
+    </Modal>
   );
 }
 
@@ -169,101 +162,121 @@ export default function MeetingsPage() {
   }
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "1100px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700, flexGrow: 1 }}>Meetings</h2>
+    <div>
+      <PageHeader
+        title="Meetings"
+        subtitle={loading ? "Loading meetings…" : `${meetings.length} meeting${meetings.length === 1 ? "" : "s"} in view`}
+        icon={<Calendar size={22} />}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => setShowCreate(true)}
+            icon={<Plus size={16} />}
+          >
+            New Meeting
+          </Button>
+        }
+      />
 
-        {/* Filters */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ ...filterSelect, minWidth: "140px" }}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+      {/* Filters */}
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
 
-        <select
-          value={siteFilter}
-          onChange={(e) => setSiteFilter(e.target.value)}
-          style={{ ...filterSelect, minWidth: "140px" }}
-        >
-          <option value="">All Sites</option>
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+          <select
+            value={siteFilter}
+            onChange={(e) => setSiteFilter(e.target.value)}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            <option value="">All Sites</option>
+            {sites.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
 
-        <button onClick={() => setShowCreate(true)} style={primaryBtn}>+ New Meeting</button>
-      </div>
+          {(statusFilter || siteFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setStatusFilter(""); setSiteFilter(""); }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       {/* Table */}
       {loading ? (
-        <div style={{ padding: "2rem", color: "#6c757d" }}>Loading…</div>
-      ) : error ? (
-        <div style={{ padding: "1rem", background: "#f8d7da", color: "#842029", borderRadius: "6px" }}>
-          {error}
-        </div>
+        <SkeletonTable rows={6} cols={6} />
       ) : meetings.length === 0 ? (
-        <div style={{ padding: "3rem", textAlign: "center", color: "#6c757d" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📋</div>
-          No meetings found. {statusFilter || siteFilter ? "Try clearing the filters." : 'Click "+ New Meeting" to get started.'}
-        </div>
+        <Card padding="0">
+          <EmptyState
+            icon="📅"
+            title="No meetings found"
+            description={statusFilter || siteFilter
+              ? "Try clearing the filters to see all meetings."
+              : "Schedule your first meeting to start tracking agenda items, resolutions, and follow-up tasks."}
+            action={
+              <Button variant="primary" onClick={() => setShowCreate(true)} icon={<Plus size={16} />}>
+                New Meeting
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid #dee2e6" }}>
-                <th style={th}>Title</th>
-                <th style={th}>Scheduled At</th>
-                <th style={th}>Site</th>
-                <th style={th}>Status</th>
-                <th style={th}>Resolutions</th>
-                <th style={th}>Open Tasks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {meetings.map((m) => (
-                <tr
-                  key={m.id}
-                  onClick={() => navigate(`/meetings/${m.id}`)}
-                  style={{
-                    borderBottom: "1px solid #dee2e6",
-                    cursor: "pointer",
-                    transition: "background 0.12s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                >
-                  <td style={{ ...td, fontWeight: 500, color: "#0d6efd" }}>{m.title}</td>
-                  <td style={td}>{fmtDateTime(m.scheduled_at)}</td>
-                  <td style={{ ...td, color: "#6c757d" }}>{m.site_name ?? "—"}</td>
-                  <td style={td}><MeetingStatusBadge status={m.status} /></td>
-                  <td style={{ ...td, textAlign: "center" }}>{m.resolution_count}</td>
-                  <td style={{ ...td, textAlign: "center" }}>
-                    {m.open_task_count > 0 ? (
-                      <span style={{ color: "#dc3545", fontWeight: 600 }}>{m.open_task_count}</span>
-                    ) : (
-                      <span style={{ color: "#6c757d" }}>0</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table columns={["Title", "Scheduled At", "Site", "Status", "Resolutions", "Open Tasks"]}>
+          {meetings.map((m) => (
+            <Tr key={m.id} onClick={() => navigate(`/meetings/${m.id}`)}>
+              <Td style={{ fontWeight: font.weight.semibold, color: colors.text }}>
+                {m.title}
+              </Td>
+              <Td style={{ color: colors.textSecondary, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+                {fmtDateTime(m.scheduled_at)}
+              </Td>
+              <Td style={{ color: colors.textSecondary }}>{m.site_name ?? "—"}</Td>
+              <Td><MeetingStatusBadge status={m.status} /></Td>
+              <Td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums", color: colors.textSecondary }}>
+                {m.resolution_count}
+              </Td>
+              <Td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                {m.open_task_count > 0 ? (
+                  <Badge
+                    bg={colors.dangerLight}
+                    text={colors.dangerDark}
+                    label={String(m.open_task_count)}
+                    size="sm"
+                  />
+                ) : (
+                  <span style={{ color: colors.textMuted }}>0</span>
+                )}
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
 
-      {/* Create modal */}
-      {showCreate && (
-        <CreateMeetingModal
-          sites={sites}
-          onClose={() => setShowCreate(false)}
-          onCreated={handleCreated}
-        />
-      )}
+      <CreateMeetingModal
+        open={showCreate}
+        sites={sites}
+        onClose={() => setShowCreate(false)}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }
@@ -282,32 +295,3 @@ function fmtDateTime(iso: string): string {
     return iso;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-const primaryBtn: React.CSSProperties = {
-  padding: "8px 16px", background: "#0d6efd", color: "#fff",
-  border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.88rem",
-};
-const outlineBtn: React.CSSProperties = {
-  padding: "7px 14px", background: "#fff", color: "#0d6efd",
-  border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem",
-};
-const filterSelect: React.CSSProperties = {
-  padding: "7px 10px", border: "1px solid #ced4da", borderRadius: "6px",
-  fontSize: "0.85rem", background: "#fff", cursor: "pointer",
-};
-const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
-  display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999,
-};
-const modalBox: React.CSSProperties = {
-  background: "#fff", borderRadius: "10px", padding: "1.5rem",
-  maxWidth: "480px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-};
-const fieldGroup: React.CSSProperties = { marginBottom: "1rem" };
-const label: React.CSSProperties      = { display: "block", fontWeight: 500, fontSize: "0.85rem", marginBottom: "4px", color: "#212529" };
-const input: React.CSSProperties      = { width: "100%", padding: "8px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem", boxSizing: "border-box" };
-const th: React.CSSProperties         = { padding: "8px 14px", fontWeight: 600, fontSize: "0.78rem", color: "#495057", textTransform: "uppercase", textAlign: "left" };
-const td: React.CSSProperties         = { padding: "10px 14px", verticalAlign: "middle" };

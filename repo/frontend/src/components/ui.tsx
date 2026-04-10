@@ -3,7 +3,7 @@
  * All shared building blocks — import from "@/components/ui"
  */
 import React from "react";
-import { colors, shadows, radius, font, transition } from "@/styles/tokens";
+import { colors, shadows, radius, font, transition, gradients } from "@/styles/tokens";
 
 // ============================================================================
 // CARD
@@ -19,19 +19,21 @@ interface CardProps {
 
 export function Card({ children, style, padding = "1.5rem", onClick, hoverable }: CardProps) {
   const [hovered, setHovered] = React.useState(false);
+  const interactive = Boolean(onClick || hoverable);
   return (
     <div
       onClick={onClick}
-      onMouseEnter={() => hoverable && setHovered(true)}
-      onMouseLeave={() => hoverable && setHovered(false)}
+      onMouseEnter={() => interactive && setHovered(true)}
+      onMouseLeave={() => interactive && setHovered(false)}
       style={{
         background: colors.surface,
         borderRadius: radius.lg,
-        boxShadow: hovered ? shadows.lg : shadows.md,
-        border: `1px solid ${colors.border}`,
+        boxShadow: hovered ? shadows.lg : shadows.sm,
+        border: `1px solid ${hovered && interactive ? "#DDE1EC" : colors.border}`,
         padding,
         cursor: onClick ? "pointer" : undefined,
-        transition: `box-shadow ${transition.base}`,
+        transform: hovered && interactive ? "translateY(-1px)" : "translateY(0)",
+        transition: `box-shadow ${transition.base}, transform ${transition.base}, border-color ${transition.base}`,
         ...style,
       }}
     >
@@ -41,7 +43,7 @@ export function Card({ children, style, padding = "1.5rem", onClick, hoverable }
 }
 
 // ============================================================================
-// STAT CARD (metric card with accent top border)
+// STAT CARD (metric card with glow + icon tile)
 // ============================================================================
 
 interface StatCardProps {
@@ -51,38 +53,94 @@ interface StatCardProps {
   accent?: string;
   to?: string;
   loading?: boolean;
+  delta?: string;
+  deltaPositive?: boolean;
 }
 
-export function StatCard({ label, value, icon, accent = colors.primary, loading }: StatCardProps) {
+export function StatCard({ label, value, icon, accent = colors.primary, loading, delta, deltaPositive }: StatCardProps) {
+  const [hovered, setHovered] = React.useState(false);
   return (
-    <div style={{
-      background: colors.surface,
-      borderRadius: radius.lg,
-      boxShadow: shadows.md,
-      border: `1px solid ${colors.border}`,
-      borderTop: `3px solid ${accent}`,
-      padding: "1.25rem 1.5rem",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "relative",
+        background: colors.surface,
+        borderRadius: radius.lg,
+        boxShadow: hovered ? shadows.lg : shadows.sm,
+        border: `1px solid ${colors.border}`,
+        padding: "1.3rem 1.4rem 1.4rem",
+        overflow: "hidden",
+        transition: `box-shadow ${transition.base}, transform ${transition.base}`,
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+      }}
+    >
+      {/* accent glow in top-right corner */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -50, right: -50,
+          width: 160, height: 160,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${accent}18 0%, transparent 70%)`,
+          pointerEvents: "none",
+        }}
+      />
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        marginBottom: "1rem",
+        position: "relative",
+      }}>
         {icon && (
           <div style={{
-            width: 40, height: 40, borderRadius: radius.md,
-            background: accent + "18",
+            width: 44, height: 44, borderRadius: radius.md,
+            background: `linear-gradient(135deg, ${accent}1f 0%, ${accent}0f 100%)`,
             display: "flex", alignItems: "center", justifyContent: "center",
             color: accent,
+            boxShadow: `inset 0 0 0 1px ${accent}33`,
           }}>
             {icon}
           </div>
         )}
+        {delta && (
+          <span style={{
+            fontSize: font.size.xs,
+            fontWeight: font.weight.semibold,
+            padding: "3px 9px",
+            borderRadius: radius.full,
+            background: deltaPositive ? colors.successLight : colors.dangerLight,
+            color: deltaPositive ? colors.successDark : colors.dangerDark,
+          }}>
+            {delta}
+          </span>
+        )}
       </div>
       {loading ? (
-        <SkeletonLine width="60px" height="28px" />
+        <SkeletonLine width="70px" height="32px" />
       ) : (
-        <div style={{ fontSize: "1.75rem", fontWeight: font.weight.bold, color: colors.text, lineHeight: 1 }}>
+        <div style={{
+          fontSize: "1.95rem",
+          fontWeight: font.weight.bold,
+          color: colors.text,
+          lineHeight: 1,
+          letterSpacing: font.tracking.tight,
+          position: "relative",
+          fontVariantNumeric: "tabular-nums",
+        }}>
           {value}
         </div>
       )}
-      <div style={{ marginTop: "0.4rem", fontSize: font.size.sm, color: colors.textMuted, fontWeight: font.weight.medium }}>
+      <div style={{
+        marginTop: "0.55rem",
+        fontSize: font.size.sm,
+        color: colors.textMuted,
+        fontWeight: font.weight.medium,
+        letterSpacing: "0.01em",
+        position: "relative",
+      }}>
         {label}
       </div>
     </div>
@@ -100,14 +158,16 @@ interface BadgeProps {
   size?: "sm" | "md";
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  dot?: boolean;
 }
 
-export function Badge({ bg, text, label, size = "md", children, style }: BadgeProps) {
+export function Badge({ bg, text, label, size = "md", children, style, dot }: BadgeProps) {
   return (
     <span style={{
       display: "inline-flex",
       alignItems: "center",
-      padding: size === "sm" ? "1px 8px" : "2px 10px",
+      gap: dot ? 6 : 0,
+      padding: size === "sm" ? "2px 9px" : "3px 11px",
       borderRadius: radius.full,
       fontSize: size === "sm" ? font.size.xs : font.size.sm,
       fontWeight: font.weight.semibold,
@@ -115,8 +175,16 @@ export function Badge({ bg, text, label, size = "md", children, style }: BadgePr
       color: text ?? "inherit",
       whiteSpace: "nowrap",
       letterSpacing: "0.01em",
+      lineHeight: 1.5,
       ...style,
     }}>
+      {dot && (
+        <span style={{
+          width: 6, height: 6, borderRadius: "50%",
+          background: text ?? "currentColor",
+          flexShrink: 0,
+        }} />
+      )}
       {label ?? children}
     </span>
   );
@@ -137,46 +205,83 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariantStyles: Record<ButtonVariant, React.CSSProperties> = {
-  primary:   { background: colors.primary,   color: "#fff",           border: `1px solid ${colors.primary}` },
-  secondary: { background: colors.gray100,   color: colors.text,      border: `1px solid ${colors.border}` },
-  outline:   { background: "transparent",    color: colors.primary,   border: `1px solid ${colors.primary}` },
-  ghost:     { background: "transparent",    color: colors.textSecondary, border: "1px solid transparent" },
-  danger:    { background: colors.danger,    color: "#fff",           border: `1px solid ${colors.danger}` },
+  primary: {
+    background: gradients.primary,
+    color: "#fff",
+    border: `1px solid ${colors.primary}`,
+    boxShadow: "0 1px 2px rgba(15,23,42,0.08), 0 1px 3px rgba(79,70,229,0.28)",
+  },
+  secondary: {
+    background: colors.surface,
+    color: colors.text,
+    border: `1px solid ${colors.border}`,
+    boxShadow: shadows.xs,
+  },
+  outline: {
+    background: "transparent",
+    color: colors.primary,
+    border: `1px solid ${colors.primaryMid}`,
+  },
+  ghost: {
+    background: "transparent",
+    color: colors.textSecondary,
+    border: "1px solid transparent",
+  },
+  danger: {
+    background: gradients.danger,
+    color: "#fff",
+    border: `1px solid ${colors.danger}`,
+    boxShadow: "0 1px 2px rgba(15,23,42,0.08), 0 1px 3px rgba(239,68,68,0.3)",
+  },
 };
 
 const buttonSizeStyles: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: "5px 12px",  fontSize: font.size.sm,   borderRadius: radius.md },
-  md: { padding: "7px 16px",  fontSize: font.size.base, borderRadius: radius.md },
-  lg: { padding: "10px 22px", fontSize: font.size.lg,   borderRadius: radius.md },
+  sm: { padding: "0 13px",  fontSize: font.size.sm,   borderRadius: radius.md, height: 32 },
+  md: { padding: "0 18px",  fontSize: font.size.base, borderRadius: radius.md, height: 38 },
+  lg: { padding: "0 24px",  fontSize: font.size.md,   borderRadius: radius.lg, height: 44 },
 };
 
 export function Button({
   variant = "primary", size = "md", loading, icon, children, disabled, style, ...rest
 }: ButtonProps) {
   const [hovered, setHovered] = React.useState(false);
+  const [pressed, setPressed] = React.useState(false);
 
   const hoverMap: Record<ButtonVariant, React.CSSProperties> = {
-    primary:   { background: colors.primaryHover, borderColor: colors.primaryHover },
-    secondary: { background: colors.gray200 },
-    outline:   { background: colors.primaryLight },
-    ghost:     { background: colors.gray100 },
-    danger:    { background: "#DC2626", borderColor: "#DC2626" },
+    primary: {
+      background: "linear-gradient(135deg, #4F46E5 0%, #6D28D9 100%)",
+      boxShadow: "0 2px 4px rgba(15,23,42,0.1), 0 8px 18px -4px rgba(79,70,229,0.35)",
+    },
+    secondary: { background: colors.surfaceHover, borderColor: colors.borderStrong },
+    outline: { background: colors.primaryLight, borderColor: colors.primary },
+    ghost: { background: colors.gray100, color: colors.text },
+    danger: {
+      background: "linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)",
+      boxShadow: "0 2px 4px rgba(15,23,42,0.1), 0 8px 18px -4px rgba(239,68,68,0.35)",
+    },
   };
 
   return (
     <button
       disabled={disabled || loading}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "6px",
+        justifyContent: "center",
+        gap: "7px",
         fontFamily: font.family,
         fontWeight: font.weight.semibold,
+        letterSpacing: "0.005em",
         cursor: disabled || loading ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.55 : 1,
-        transition: `all ${transition.base}`,
+        opacity: disabled ? 0.5 : 1,
+        transition: `background ${transition.fast}, box-shadow ${transition.fast}, transform ${transition.fast}, border-color ${transition.fast}`,
+        transform: pressed ? "translateY(1px)" : "translateY(0)",
+        userSelect: "none",
+        whiteSpace: "nowrap",
         ...buttonVariantStyles[variant],
         ...buttonSizeStyles[size],
         ...(hovered && !disabled && !loading ? hoverMap[variant] : {}),
@@ -184,7 +289,17 @@ export function Button({
       }}
       {...rest}
     >
-      {icon && <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>}
+      {loading ? (
+        <span style={{
+          width: 14, height: 14,
+          borderRadius: "50%",
+          border: "2px solid currentColor",
+          borderTopColor: "transparent",
+          animation: "hb-spin 0.7s linear infinite",
+        }} />
+      ) : icon ? (
+        <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>
+      ) : null}
       {loading ? "Loading…" : children}
     </button>
   );
@@ -211,39 +326,51 @@ export function PageHeader({ title, subtitle, actions, icon }: PageHeaderProps) 
       gap: "1rem",
       flexWrap: "wrap",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem", minWidth: 0, flex: "1 1 260px" }}>
         {icon && (
-          <div style={{
-            width: 42, height: 42, borderRadius: radius.md,
-            background: colors.primaryLight,
-            color: colors.primary,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
-            marginTop: "2px",
-          }}>
+          <div
+            className="hb-page-icon"
+            style={{
+              width: 48, height: 48, borderRadius: radius.lg,
+              background: gradients.primarySoft,
+              color: colors.primary,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+              marginTop: "2px",
+              boxShadow: `inset 0 0 0 1px ${colors.primaryMid}66, 0 1px 2px rgba(79,70,229,0.08)`,
+            }}>
             {icon}
           </div>
         )}
-        <div>
-          <h1 style={{
-            margin: 0,
-            fontSize: font.size.h2,
-            fontWeight: font.weight.bold,
-            color: colors.text,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.2,
-          }}>
+        <div style={{ minWidth: 0 }}>
+          <h1
+            className="hb-page-title"
+            style={{
+              margin: 0,
+              fontSize: font.size.h1,
+              fontWeight: font.weight.bold,
+              color: colors.text,
+              letterSpacing: font.tracking.tighter,
+              lineHeight: 1.15,
+              overflowWrap: "break-word",
+            }}>
             {title}
           </h1>
           {subtitle && (
-            <p style={{ margin: "0.3rem 0 0", fontSize: font.size.base, color: colors.textMuted }}>
+            <p style={{
+              margin: "0.45rem 0 0",
+              fontSize: font.size.md,
+              color: colors.textSecondary,
+              fontWeight: font.weight.normal,
+              lineHeight: 1.5,
+            }}>
               {subtitle}
             </p>
           )}
         </div>
       </div>
       {actions && (
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
           {actions}
         </div>
       )}
@@ -267,26 +394,29 @@ export function Table({ columns, children, stickyHeader }: TableProps) {
       background: colors.surface,
       borderRadius: radius.lg,
       border: `1px solid ${colors.border}`,
-      boxShadow: shadows.md,
+      boxShadow: shadows.sm,
       overflow: "hidden",
     }}>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: colors.gray50, borderBottom: `1px solid ${colors.border}` }}>
+            <tr style={{
+              background: colors.surfaceAlt,
+              borderBottom: `1px solid ${colors.border}`,
+            }}>
               {columns.map((col) => (
                 <th key={col} style={{
-                  padding: "10px 16px",
+                  padding: "13px 18px",
                   textAlign: "left",
                   fontSize: font.size.xs,
                   fontWeight: font.weight.semibold,
                   color: colors.textMuted,
                   textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  letterSpacing: font.tracking.wider,
                   whiteSpace: "nowrap",
                   position: stickyHeader ? "sticky" : undefined,
                   top: stickyHeader ? 0 : undefined,
-                  background: stickyHeader ? colors.gray50 : undefined,
+                  background: stickyHeader ? colors.surfaceAlt : undefined,
                 }}>
                   {col}
                 </th>
@@ -329,7 +459,7 @@ export function Tr({ children, onClick, muted }: TrProps) {
 export function Td({ children, style }: { children?: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <td style={{
-      padding: "12px 16px",
+      padding: "14px 18px",
       fontSize: font.size.base,
       color: colors.text,
       verticalAlign: "middle",
@@ -358,16 +488,32 @@ export function EmptyState({ icon = "📭", title, description, action }: EmptyS
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      padding: "4rem 2rem",
+      padding: "4.5rem 2rem",
       textAlign: "center",
       color: colors.textMuted,
     }}>
-      <div style={{ fontSize: "2.5rem", marginBottom: "1rem", opacity: 0.7 }}>{icon}</div>
-      <div style={{ fontSize: font.size.lg, fontWeight: font.weight.semibold, color: colors.textSecondary, marginBottom: "0.4rem" }}>
+      <div style={{
+        width: 72, height: 72,
+        borderRadius: radius.xl,
+        background: gradients.primarySoft,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: "2rem",
+        marginBottom: "1.25rem",
+        boxShadow: `inset 0 0 0 1px ${colors.primaryMid}44`,
+      }}>
+        {icon}
+      </div>
+      <div style={{
+        fontSize: font.size.lg,
+        fontWeight: font.weight.semibold,
+        color: colors.text,
+        marginBottom: "0.4rem",
+        letterSpacing: font.tracking.tight,
+      }}>
         {title}
       </div>
       {description && (
-        <div style={{ fontSize: font.size.base, color: colors.textMuted, maxWidth: "360px", lineHeight: 1.6 }}>
+        <div style={{ fontSize: font.size.base, color: colors.textMuted, maxWidth: "380px", lineHeight: 1.6 }}>
           {description}
         </div>
       )}
@@ -388,7 +534,7 @@ export function SkeletonLine({ width = "100%", height = "14px", style }: {
       width, height,
       background: `linear-gradient(90deg, ${colors.gray200} 25%, ${colors.gray100} 50%, ${colors.gray200} 75%)`,
       backgroundSize: "200% 100%",
-      animation: "shimmer 1.4s ease infinite",
+      animation: "hb-shimmer 1.6s ease-in-out infinite",
       borderRadius: radius.sm,
       ...style,
     }} />
@@ -409,14 +555,14 @@ export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
   return (
     <div style={{
       background: colors.surface, borderRadius: radius.lg,
-      border: `1px solid ${colors.border}`, boxShadow: shadows.md, overflow: "hidden",
+      border: `1px solid ${colors.border}`, boxShadow: shadows.sm, overflow: "hidden",
     }}>
-      <div style={{ padding: "10px 16px", borderBottom: `1px solid ${colors.border}`, background: colors.gray50 }}>
+      <div style={{ padding: "13px 18px", borderBottom: `1px solid ${colors.border}`, background: colors.surfaceAlt }}>
         <SkeletonLine width="200px" height="12px" />
       </div>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} style={{
-          padding: "14px 16px",
+          padding: "16px 18px",
           borderBottom: i < rows - 1 ? `1px solid ${colors.border}` : undefined,
           display: "flex", gap: "1rem", alignItems: "center",
         }}>
@@ -456,22 +602,27 @@ export function Modal({ open, onClose, title, children, width = "480px", footer 
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: "fixed", inset: 0,
-        background: "rgba(15,23,42,0.5)",
-        backdropFilter: "blur(2px)",
+        background: "rgba(15,23,42,0.55)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         zIndex: 1000, padding: "1rem",
+        animation: "hb-fade-in 0.2s ease both",
       }}
     >
       <div style={{
         background: colors.surface,
         borderRadius: radius.xl,
-        boxShadow: shadows.xl,
+        boxShadow: shadows["2xl"],
+        border: `1px solid ${colors.border}`,
         width: "100%",
-        maxWidth: width,
-        maxHeight: "90vh",
+        // Never wider than the viewport minus the outer 1rem padding on each side.
+        maxWidth: `min(${width}, calc(100vw - 2rem))`,
+        maxHeight: "calc(100vh - 2rem)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        animation: "hb-scale-in 0.22s cubic-bezier(0.4, 0, 0.2, 1) both",
       }}>
         {/* Header */}
         <div style={{
@@ -479,17 +630,32 @@ export function Modal({ open, onClose, title, children, width = "480px", footer 
           padding: "1.25rem 1.5rem",
           borderBottom: `1px solid ${colors.border}`,
         }}>
-          <h2 style={{ fontSize: font.size.xl, fontWeight: font.weight.bold, color: colors.text }}>
+          <h2 style={{
+            fontSize: font.size.xl,
+            fontWeight: font.weight.bold,
+            color: colors.text,
+            letterSpacing: font.tracking.tight,
+          }}>
             {title}
           </h2>
           <button
             onClick={onClose}
             style={{
-              background: "none", border: "none",
-              width: 32, height: 32, borderRadius: radius.md,
+              background: colors.gray100,
+              border: "none",
+              width: 30, height: 30, borderRadius: radius.md,
               display: "flex", alignItems: "center", justifyContent: "center",
-              color: colors.textMuted, cursor: "pointer", fontSize: "1.25rem",
+              color: colors.textSecondary, cursor: "pointer", fontSize: "1.1rem",
               lineHeight: 1,
+              transition: `background ${transition.fast}, color ${transition.fast}`,
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = colors.gray200;
+              (e.currentTarget as HTMLElement).style.color = colors.text;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = colors.gray100;
+              (e.currentTarget as HTMLElement).style.color = colors.textSecondary;
             }}
           >
             ×
@@ -506,8 +672,8 @@ export function Modal({ open, onClose, title, children, width = "480px", footer 
           <div style={{
             padding: "1rem 1.5rem",
             borderTop: `1px solid ${colors.border}`,
-            display: "flex", justifyContent: "flex-end", gap: "0.5rem",
-            background: colors.gray50,
+            display: "flex", justifyContent: "flex-end", gap: "0.6rem",
+            background: colors.surfaceAlt,
           }}>
             {footer}
           </div>
@@ -529,25 +695,27 @@ interface AlertBannerProps {
   onClose?: () => void;
 }
 
-const alertConfig: Record<AlertType, { bg: string; text: string; border: string }> = {
-  error:   { bg: colors.dangerLight,  text: colors.dangerDark,  border: colors.danger },
-  warning: { bg: colors.warningLight, text: colors.warningDark, border: colors.warning },
-  success: { bg: colors.successLight, text: colors.successDark, border: colors.success },
-  info:    { bg: colors.infoLight,    text: colors.infoDark,    border: colors.info },
+const alertConfig: Record<AlertType, { bg: string; text: string; border: string; soft: string }> = {
+  error:   { bg: colors.dangerLight,  text: colors.dangerDark,  border: colors.danger,  soft: colors.dangerSoft  },
+  warning: { bg: colors.warningLight, text: colors.warningDark, border: colors.warning, soft: colors.warningSoft },
+  success: { bg: colors.successLight, text: colors.successDark, border: colors.success, soft: colors.successSoft },
+  info:    { bg: colors.infoLight,    text: colors.infoDark,    border: colors.info,    soft: colors.infoSoft    },
 };
 
 export function AlertBanner({ type = "error", message, onClose }: AlertBannerProps) {
   const c = alertConfig[type];
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
+      display: "flex", alignItems: "flex-start", justifyContent: "space-between",
       padding: "12px 16px",
-      background: c.bg,
+      background: c.soft,
       color: c.text,
       borderRadius: radius.md,
-      border: `1px solid ${c.border}30`,
+      border: `1px solid ${c.bg}`,
+      borderLeft: `3px solid ${c.border}`,
       fontSize: font.size.base,
       marginBottom: "1rem",
+      lineHeight: 1.5,
     }}>
       <span>{message}</span>
       {onClose && (
@@ -556,6 +724,7 @@ export function AlertBanner({ type = "error", message, onClose }: AlertBannerPro
           color: c.text, cursor: "pointer",
           fontSize: "1.1rem", lineHeight: 1, opacity: 0.7,
           marginLeft: "1rem",
+          padding: 0,
         }}>×</button>
       )}
     </div>
@@ -576,11 +745,12 @@ interface FieldProps {
 
 export function Field({ label, required, error, children, hint }: FieldProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       <label style={{
         fontSize: font.size.sm,
         fontWeight: font.weight.semibold,
         color: colors.textSecondary,
+        letterSpacing: "0.005em",
       }}>
         {label}
         {required && <span style={{ color: colors.danger, marginLeft: "3px" }}>*</span>}
@@ -590,7 +760,7 @@ export function Field({ label, required, error, children, hint }: FieldProps) {
         <span style={{ fontSize: font.size.xs, color: colors.textMuted }}>{hint}</span>
       )}
       {error && (
-        <span style={{ fontSize: font.size.xs, color: colors.danger }}>{error}</span>
+        <span style={{ fontSize: font.size.xs, color: colors.danger, fontWeight: font.weight.medium }}>{error}</span>
       )}
     </div>
   );
@@ -625,7 +795,7 @@ export function Pagination({ page, totalPages, total, onPrev, onNext }: Paginati
         <Button variant="secondary" size="sm" onClick={onPrev} disabled={page === 1}>
           ← Prev
         </Button>
-        <span style={{ fontSize: font.size.sm, color: colors.textSecondary, minWidth: "80px", textAlign: "center" }}>
+        <span style={{ fontSize: font.size.sm, color: colors.textSecondary, minWidth: "80px", textAlign: "center", fontWeight: font.weight.medium }}>
           {page} / {totalPages}
         </span>
         <Button variant="secondary" size="sm" onClick={onNext} disabled={page === totalPages}>
@@ -645,24 +815,18 @@ export function Divider({ label }: { label?: string }) {
     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", margin: "1rem 0" }}>
       <div style={{ flex: 1, height: "1px", background: colors.border }} />
       {label && (
-        <span style={{ fontSize: font.size.xs, color: colors.textMuted, fontWeight: font.weight.medium, whiteSpace: "nowrap" }}>
+        <span style={{
+          fontSize: font.size.xs,
+          color: colors.textMuted,
+          fontWeight: font.weight.semibold,
+          whiteSpace: "nowrap",
+          textTransform: "uppercase",
+          letterSpacing: font.tracking.wider,
+        }}>
           {label}
         </span>
       )}
       {label && <div style={{ flex: 1, height: "1px", background: colors.border }} />}
     </div>
   );
-}
-
-// ============================================================================
-// SHIMMER keyframes injection (once on load)
-// ============================================================================
-if (typeof document !== "undefined") {
-  const id = "__harbor_shimmer__";
-  if (!document.getElementById(id)) {
-    const style = document.createElement("style");
-    style.id = id;
-    style.textContent = `@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }`;
-    document.head.appendChild(style);
-  }
 }

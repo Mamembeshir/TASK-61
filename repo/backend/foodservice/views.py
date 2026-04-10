@@ -19,7 +19,9 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.exceptions import UnprocessableEntity
 from core.models     import AuditLog
+from core.pagination import paginate_list
 from foodservice.models      import Recipe, RecipeVersion, RecipeIngredient, RecipeStep
+from tenants.models  import Site
 from foodservice.serializers import (
     RecipeListSerializer,
     RecipeDetailSerializer,
@@ -126,17 +128,16 @@ class RecipeListCreateView(APIView):
         ).prefetch_related("ingredients")
         qs = qs.prefetch_related(
             Prefetch("versions", queryset=active_qs, to_attr="_prefetched_active")
-        )
+        ).order_by("-created_at")
 
-        # Attach _active_version to each recipe instance so the serializer
-        # doesn't need extra DB hits
-        results = list(qs.order_by("-created_at"))
-        for recipe in results:
-            prefetched = getattr(recipe, "_prefetched_active", [])
-            recipe._active_version = prefetched[0] if prefetched else None
+        def _annotate(items):
+            for recipe in items:
+                prefetched = getattr(recipe, "_prefetched_active", [])
+                recipe._active_version = prefetched[0] if prefetched else None
+            return items
 
-        serializer = RecipeListSerializer(results, many=True)
-        return Response(serializer.data)
+        return paginate_list(request, qs, RecipeListSerializer,
+                             post_slice_hook=_annotate)
 
     @transaction.atomic
     def post(self, request):
@@ -194,7 +195,7 @@ class RecipeVersionListCreateView(APIView):
         versions = recipe.versions.prefetch_related("ingredients", "steps").order_by(
             "-version_number"
         )
-        return Response(RecipeVersionSerializer(versions, many=True).data)
+        return paginate_list(request, versions, RecipeVersionSerializer, ordering="-version_number")
 
     @transaction.atomic
     def post(self, request, pk):
@@ -259,9 +260,18 @@ class RecipeVersionActivateView(APIView):
     def post(self, request, pk, vid):
         recipe  = get_object_or_404(Recipe, pk=pk, tenant=request.user.tenant)
         version = get_object_or_404(RecipeVersion, pk=vid, recipe=recipe)
+
+        # Optional site scoping: caller may POST {"site_id": "<uuid>"} to activate
+        # for a specific site only; omitting it means tenant-wide (site=None).
+        site_id = request.data.get("site_id")
+        if site_id:
+            site = get_object_or_404(Site, pk=site_id, tenant=request.user.tenant)
+            version.site = site
+            version.save(update_fields=["site"])
+
         version.activate()          # raises UnprocessableEntity on invalid state
         _log(request, AuditLog.Action.PUBLISH, recipe,
-             {"version_number": version.version_number})
+             {"version_number": version.version_number, "site_id": str(site_id) if site_id else None})
         version.refresh_from_db()
         version_qs = RecipeVersion.objects.prefetch_related(
             "ingredients", "steps"

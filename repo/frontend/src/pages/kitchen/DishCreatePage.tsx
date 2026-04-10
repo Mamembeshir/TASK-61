@@ -1,10 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { dishApi, allergenApi, recipeApi, type Allergen, type RecipeListItem } from "@/api/foodservice";
+import { ArrowLeft, Utensils, Plus, X } from "lucide-react";
+import { dishApi, allergenApi, type Allergen, type RecipeListItem } from "@/api/foodservice";
 import CurrencyInput from "@/components/CurrencyInput";
 import AllergenChipSelect from "@/components/AllergenChipSelect";
 import NutritionFieldGroup from "@/components/NutritionFieldGroup";
 import RecipeAutocomplete from "@/components/RecipeAutocomplete";
+import {
+  PageHeader, Button, Card, Field, AlertBanner,
+} from "@/components/ui";
+import { inputStyle, textareaStyle } from "@/styles/forms";
+import { colors, font, radius } from "@/styles/tokens";
 
 interface Portion {
   portion_label: string;
@@ -42,14 +48,12 @@ export default function DishCreatePage() {
     allergenApi.list().then(setAllergens).catch(() => {});
   }, []);
 
-  // When recipe selected, auto-fill cost from active version
   useEffect(() => {
     if (recipe?.per_serving_cost) {
       setCost(parseFloat(recipe.per_serving_cost).toFixed(2));
     }
   }, [recipe]);
 
-  // Portions helpers
   function addPortion() {
     setPortions((p) => [...p, { portion_label: "", serving_size_qty: "", serving_size_unit: "", price_multiplier: "1.00" }]);
   }
@@ -60,7 +64,6 @@ export default function DishCreatePage() {
     setPortions((p) => p.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
   }
 
-  // Addons helpers
   function addAddon() {
     setAddons((a) => [...a, { addon_name: "", additional_cost: "", allergen_ids: [] }]);
   }
@@ -75,7 +78,6 @@ export default function DishCreatePage() {
     e.preventDefault();
     setError(null);
 
-    // Client-side nutrition check
     const nutritionVals = Object.values(nutrition);
     const filled = nutritionVals.filter((v) => v !== "");
     if (filled.length > 0 && filled.length < 4) {
@@ -121,169 +123,303 @@ export default function DishCreatePage() {
   }
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "860px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate("/kitchen/dishes")} style={backBtn}>← Dishes</button>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>New Dish</h2>
-      </div>
+    <div>
+      <PageHeader
+        title="New Dish"
+        subtitle="Define dish, link a recipe, and declare allergens"
+        icon={<Utensils size={22} />}
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/kitchen/dishes")}
+            icon={<ArrowLeft size={14} />}
+          >
+            Dishes
+          </Button>
+        }
+      />
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       <form onSubmit={handleSubmit}>
         {/* Basic info */}
-        <div style={section}>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <div style={{ flex: 1, minWidth: "200px" }}>
-              <label style={labelStyle}>Name <span style={req}>*</span></label>
-              <input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder="e.g. Pancake Stack" required />
-            </div>
-            <div style={{ flex: "0 0 180px" }}>
-              <label style={labelStyle}>Effective From <span style={req}>*</span></label>
-              <input type="date" value={effFrom} onChange={(e) => setEffFrom(e.target.value)} style={input} required />
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Description</label>
-            <div style={{ position: "relative" }}>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={1000}
-                rows={3}
-                style={{ ...input, resize: "vertical", width: "100%", boxSizing: "border-box" }}
-                placeholder="Optional description…"
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Basic Details</SectionTitle>
+          <div className="hb-stack-sm" style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: "1rem", marginBottom: "1rem" }}>
+            <Field label="Name" required>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={inputStyle}
+                placeholder="e.g. Pancake Stack"
+                required
               />
-              <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#6c757d" }}>{description.length}/1000</div>
-            </div>
+            </Field>
+            <Field label="Effective From" required>
+              <input
+                type="date"
+                value={effFrom}
+                onChange={(e) => setEffFrom(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </Field>
           </div>
-        </div>
+          <Field label="Description" hint={`${description.length}/1000`}>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              style={textareaStyle}
+              placeholder="Optional description…"
+            />
+          </Field>
+        </Card>
 
-        {/* Link recipe + cost */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Recipe Link &amp; Cost</h3>
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={labelStyle}>Link Recipe (optional)</label>
+        {/* Recipe link + cost */}
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Recipe Link &amp; Cost</SectionTitle>
+          <Field label="Link Recipe (optional)">
             <RecipeAutocomplete
               value={recipe}
               onChange={(r) => {
                 setRecipe(r);
-                if (!r) setCost(""); // clear auto-filled cost when cleared
+                if (!r) setCost("");
               }}
               placeholder="Search recipes…"
             />
-            {recipe?.per_serving_cost && (
-              <div style={{ fontSize: "0.8rem", color: "#0f5132", marginTop: "4px" }}>
-                Auto-filled from active version: ${parseFloat(recipe.per_serving_cost).toFixed(2)} / serving
-              </div>
-            )}
+          </Field>
+          {recipe?.per_serving_cost && (
+            <div style={{
+              marginTop: "0.6rem",
+              padding: "8px 12px",
+              background: colors.successSoft,
+              color: colors.successDark,
+              border: `1px solid ${colors.successLight}`,
+              borderLeft: `3px solid ${colors.success}`,
+              borderRadius: radius.md,
+              fontSize: font.size.sm,
+            }}>
+              Auto-filled from active version: <strong>${parseFloat(recipe.per_serving_cost).toFixed(2)}</strong> / serving
+            </div>
+          )}
+          <div style={{ maxWidth: "200px", marginTop: "1rem" }}>
+            <Field label="Per-Serving Cost" required={!recipe}>
+              <CurrencyInput
+                value={cost}
+                onChange={setCost}
+                disabled={!!recipe}
+                placeholder={recipe ? "Auto from recipe" : "$0.00"}
+              />
+            </Field>
           </div>
-          <div style={{ maxWidth: "180px" }}>
-            <label style={labelStyle}>Per-Serving Cost {!recipe && <span style={req}>*</span>}</label>
-            <CurrencyInput
-              value={cost}
-              onChange={setCost}
-              disabled={!!recipe}
-              placeholder={recipe ? "Auto from recipe" : "$0.00"}
-            />
-          </div>
-        </div>
+        </Card>
 
         {/* Allergens */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Allergens <span style={req}>*</span></h3>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>
+            Allergens <span style={{ color: colors.danger }}>*</span>
+          </SectionTitle>
           <AllergenChipSelect
             allergens={allergens}
             selectedIds={allergenIds}
             onChange={setAllergenIds}
           />
-        </div>
+        </Card>
 
         {/* Nutrition */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Nutrition (optional)</h3>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Nutrition (optional)</SectionTitle>
           <NutritionFieldGroup
             values={nutrition}
             onChange={(field, val) => setNutrition((n) => ({ ...n, [field]: val }))}
           />
-        </div>
+        </Card>
 
         {/* Portions */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Portions</h3>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Portions</SectionTitle>
           {portions.length === 0 && (
-            <p style={{ color: "#6c757d", fontSize: "0.88rem", margin: "0 0 0.75rem" }}>No portions added.</p>
+            <p style={{
+              color: colors.textMuted,
+              fontSize: font.size.sm,
+              margin: "0 0 0.75rem",
+            }}>
+              No portions added.
+            </p>
           )}
           {portions.map((p, i) => (
-            <div key={i} style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div style={{ flex: "1 0 120px" }}>
-                <label style={labelStyle}>Label</label>
-                <input value={p.portion_label} onChange={(e) => updatePortion(i, "portion_label", e.target.value)} style={input} placeholder="Small" />
-              </div>
-              <div style={{ flex: "0 0 80px" }}>
-                <label style={labelStyle}>Qty</label>
-                <input type="number" min="0" step="0.01" value={p.serving_size_qty} onChange={(e) => updatePortion(i, "serving_size_qty", e.target.value)} style={input} />
-              </div>
-              <div style={{ flex: "0 0 80px" }}>
-                <label style={labelStyle}>Unit</label>
-                <input value={p.serving_size_unit} onChange={(e) => updatePortion(i, "serving_size_unit", e.target.value)} style={input} placeholder="g" />
-              </div>
-              <div style={{ flex: "0 0 100px" }}>
-                <label style={labelStyle}>Price Mult.</label>
-                <input type="number" min="0" step="0.01" value={p.price_multiplier} onChange={(e) => updatePortion(i, "price_multiplier", e.target.value)} style={input} />
-              </div>
-              <button type="button" onClick={() => removePortion(i)} style={iconBtn}>×</button>
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 100px 100px 120px 40px",
+                gap: "0.75rem",
+                marginBottom: "0.75rem",
+                alignItems: "end",
+              }}
+            >
+              <Field label="Label">
+                <input
+                  value={p.portion_label}
+                  onChange={(e) => updatePortion(i, "portion_label", e.target.value)}
+                  style={inputStyle}
+                  placeholder="Small"
+                />
+              </Field>
+              <Field label="Qty">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={p.serving_size_qty}
+                  onChange={(e) => updatePortion(i, "serving_size_qty", e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+              <Field label="Unit">
+                <input
+                  value={p.serving_size_unit}
+                  onChange={(e) => updatePortion(i, "serving_size_unit", e.target.value)}
+                  style={inputStyle}
+                  placeholder="g"
+                />
+              </Field>
+              <Field label="Price Mult.">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={p.price_multiplier}
+                  onChange={(e) => updatePortion(i, "price_multiplier", e.target.value)}
+                  style={inputStyle}
+                />
+              </Field>
+              <button
+                type="button"
+                onClick={() => removePortion(i)}
+                style={{ ...iconBtnStyle, marginBottom: "6px" }}
+                title="Remove"
+              >
+                <X size={14} />
+              </button>
             </div>
           ))}
-          <button type="button" onClick={addPortion} style={outlineBtn}>+ Add Portion</button>
-        </div>
+          <Button type="button" variant="outline" size="sm" onClick={addPortion} icon={<Plus size={14} />}>
+            Add Portion
+          </Button>
+        </Card>
 
         {/* Addons */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Add-ons</h3>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Add-ons</SectionTitle>
           {addons.length === 0 && (
-            <p style={{ color: "#6c757d", fontSize: "0.88rem", margin: "0 0 0.75rem" }}>No add-ons added.</p>
+            <p style={{
+              color: colors.textMuted,
+              fontSize: font.size.sm,
+              margin: "0 0 0.75rem",
+            }}>
+              No add-ons added.
+            </p>
           )}
           {addons.map((a, i) => (
-            <div key={i} style={{ border: "1px solid #dee2e6", borderRadius: "6px", padding: "0.75rem", marginBottom: "0.75rem" }}>
-              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.5rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-                <div style={{ flex: 1, minWidth: "140px" }}>
-                  <label style={labelStyle}>Add-on Name</label>
-                  <input value={a.addon_name} onChange={(e) => updateAddon(i, "addon_name", e.target.value)} style={input} placeholder="Extra Syrup" />
-                </div>
-                <div style={{ flex: "0 0 130px" }}>
-                  <label style={labelStyle}>Additional Cost</label>
-                  <CurrencyInput value={a.additional_cost} onChange={(v) => updateAddon(i, "additional_cost", v)} />
-                </div>
-                <button type="button" onClick={() => removeAddon(i)} style={iconBtn}>×</button>
+            <div
+              key={i}
+              style={{
+                border: `1px solid ${colors.border}`,
+                borderRadius: radius.md,
+                padding: "1rem",
+                marginBottom: "0.75rem",
+                background: colors.surfaceAlt,
+              }}
+            >
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 150px 40px",
+                gap: "0.75rem",
+                marginBottom: "0.85rem",
+                alignItems: "end",
+              }}>
+                <Field label="Add-on Name">
+                  <input
+                    value={a.addon_name}
+                    onChange={(e) => updateAddon(i, "addon_name", e.target.value)}
+                    style={inputStyle}
+                    placeholder="Extra Syrup"
+                  />
+                </Field>
+                <Field label="Additional Cost">
+                  <CurrencyInput
+                    value={a.additional_cost}
+                    onChange={(v) => updateAddon(i, "additional_cost", v)}
+                  />
+                </Field>
+                <button
+                  type="button"
+                  onClick={() => removeAddon(i)}
+                  style={{ ...iconBtnStyle, marginBottom: "6px" }}
+                  title="Remove"
+                >
+                  <X size={14} />
+                </button>
               </div>
-              <div>
-                <label style={labelStyle}>Allergens (optional)</label>
+              <Field label="Allergens (optional)">
                 <AllergenChipSelect
                   allergens={allergens}
                   selectedIds={a.allergen_ids}
                   onChange={(ids) => updateAddon(i, "allergen_ids", ids)}
                 />
-              </div>
+              </Field>
             </div>
           ))}
-          <button type="button" onClick={addAddon} style={outlineBtn}>+ Add Add-on</button>
-        </div>
+          <Button type="button" variant="outline" size="sm" onClick={addAddon} icon={<Plus size={14} />}>
+            Add Add-on
+          </Button>
+        </Card>
 
-        <button type="submit" disabled={loading} style={primaryBtn}>
-          {loading ? "Saving…" : "Save as Draft"}
-        </button>
+        <div style={{ display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/kitchen/dishes")}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={loading}>
+            Save as Draft
+          </Button>
+        </div>
       </form>
     </div>
   );
 }
 
-const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" };
-const outlineBtn: React.CSSProperties = { padding: "7px 14px", background: "#fff", color: "#0d6efd", border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const backBtn: React.CSSProperties    = { padding: "6px 12px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const iconBtn: React.CSSProperties    = { padding: "6px 10px", background: "#fff", color: "#dc3545", border: "1px solid #dc3545", borderRadius: "4px", cursor: "pointer" };
-const errorBox: React.CSSProperties   = { background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" };
-const section: React.CSSProperties    = { marginBottom: "1.75rem", padding: "1.25rem", border: "1px solid #dee2e6", borderRadius: "8px" };
-const sectionTitle: React.CSSProperties = { margin: "0 0 1rem 0", fontSize: "1rem", fontWeight: 600, color: "#212529" };
-const labelStyle: React.CSSProperties = { display: "block", fontSize: "0.85rem", fontWeight: 500, color: "#495057", marginBottom: "4px" };
-const req: React.CSSProperties        = { color: "#dc3545" };
-const input: React.CSSProperties      = { display: "block", width: "100%", padding: "7px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem", boxSizing: "border-box" };
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 style={{
+      margin: "0 0 1rem 0",
+      fontSize: font.size.md,
+      fontWeight: font.weight.semibold,
+      color: colors.text,
+      letterSpacing: font.tracking.tight,
+    }}>
+      {children}
+    </h3>
+  );
+}
+
+const iconBtnStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: colors.surface,
+  color: colors.danger,
+  border: `1px solid ${colors.dangerLight}`,
+  borderRadius: radius.sm,
+  cursor: "pointer",
+  padding: 0,
+};

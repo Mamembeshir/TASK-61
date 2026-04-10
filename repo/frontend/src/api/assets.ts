@@ -152,8 +152,18 @@ export const assetsApi = {
     page_size?: number;
     include_deleted?: boolean;
   }): Promise<PaginatedAssets> {
-    const { data } = await apiClient.get("assets/", { params });
-    return data;
+    // The client interceptor unwraps paginated responses to a plain array on
+    // `response.data` and preserves the wrapper on `response.pagination`.
+    // Fall back to the unwrapped array if the endpoint isn't paginated.
+    const response = await apiClient.get("assets/", { params });
+    const wrapper = (response as any).pagination as PaginatedAssets | undefined;
+    if (wrapper) return wrapper;
+    return {
+      count: Array.isArray(response.data) ? response.data.length : 0,
+      next_cursor: null,
+      previous_cursor: null,
+      results: response.data,
+    };
   },
 
   async getAsset(id: string): Promise<AssetDetail> {

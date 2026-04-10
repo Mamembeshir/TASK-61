@@ -209,7 +209,7 @@ class TestAlertPermissions:
         resp = staff_client.get(ALERTS_BASE)
         assert_status(resp, 200)
 
-        ids = [item["id"] for item in resp.json()]
+        ids = [item["id"] for item in resp.json()["results"]]
         assert str(a1.pk) in ids
         assert str(a2.pk) not in ids
 
@@ -287,7 +287,7 @@ class TestAlertFilters:
         resp = admin_client.get(ALERTS_BASE, {"status": "OPEN"})
         assert_status(resp, 200)
 
-        ids = [item["id"] for item in resp.json()]
+        ids = [item["id"] for item in resp.json()["results"]]
         assert str(open_alert.pk) in ids
         assert str(ack_alert.pk) not in ids
 
@@ -310,7 +310,7 @@ class TestAlertFilters:
         resp = admin_client.get(ALERTS_BASE, {"severity": "CRITICAL"})
         assert_status(resp, 200)
 
-        ids = [item["id"] for item in resp.json()]
+        ids = [item["id"] for item in resp.json()["results"]]
         assert str(critical_alert.pk) in ids
         assert str(warning_alert.pk) not in ids
 

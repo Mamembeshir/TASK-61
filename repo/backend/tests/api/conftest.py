@@ -17,6 +17,8 @@ import pytest
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
+from tests.signed_client import SignedAPIClient, make_signed_client  # noqa: F401
+
 
 # ---------------------------------------------------------------------------
 # Mark everything under tests/api/ as api + django_db
@@ -41,18 +43,15 @@ def api_client() -> APIClient:
 def auth_client():
     """
     Factory fixture.  Call it with a User instance to get an authenticated
-    APIClient using DRF Token auth.
+    SignedAPIClient using DRF Token auth (includes signed-request headers).
 
     Usage in a test:
         def test_something(auth_client, staff_user):
             client = auth_client(staff_user)
             resp = client.get("/api/v1/assets/")
     """
-    def _make_client(user) -> APIClient:
-        token, _ = Token.objects.get_or_create(user=user)
-        client = APIClient()
-        client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-        return client
+    def _make_client(user) -> SignedAPIClient:
+        return make_signed_client(user)
 
     return _make_client
 

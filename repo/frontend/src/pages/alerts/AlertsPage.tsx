@@ -1,101 +1,77 @@
 import { useState, useEffect, useCallback } from "react";
+import { Bell, RefreshCw, X, CheckCircle2, UserPlus, XCircle } from "lucide-react";
 import { integrationsApi, type AlertListItem, type Alert } from "@/api/integrations";
 import apiClient from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, Badge, EmptyState,
+  SkeletonTable, AlertBanner, Field,
+} from "@/components/ui";
+import { selectStyle, textareaStyle } from "@/styles/forms";
+import {
+  colors, font, radius, shadows, gradients,
+  alertSeverityColors, alertStatusColors,
+} from "@/styles/tokens";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "",             label: "All Statuses" },
+  { value: "OPEN",         label: "Open"         },
+  { value: "ACKNOWLEDGED", label: "Acknowledged" },
+  { value: "ASSIGNED",     label: "Assigned"     },
+  { value: "CLOSED",       label: "Closed"       },
+];
 
-const SEVERITY_COLOR: Record<string, { bg: string; text: string }> = {
-  CRITICAL: { bg: "#fde8e8", text: "#b71c1c" },
-  WARNING:  { bg: "#fff8e1", text: "#e65100" },
-  INFO:     { bg: "#e3f2fd", text: "#0d47a1" },
-};
-
-const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
-  OPEN:         { bg: "#fce4ec", text: "#880e4f" },
-  ACKNOWLEDGED: { bg: "#fff3e0", text: "#bf360c" },
-  ASSIGNED:     { bg: "#e8f5e9", text: "#1b5e20" },
-  CLOSED:       { bg: "#f3f4f6", text: "#555" },
-};
-
-const STATUS_OPTIONS = ["", "OPEN", "ACKNOWLEDGED", "ASSIGNED", "CLOSED"];
-const SEVERITY_OPTIONS = ["", "CRITICAL", "WARNING", "INFO"];
+const SEVERITY_OPTIONS: { value: string; label: string }[] = [
+  { value: "",         label: "All Severities" },
+  { value: "CRITICAL", label: "Critical"       },
+  { value: "WARNING",  label: "Warning"        },
+  { value: "INFO",     label: "Info"           },
+];
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString();
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Severity badge
+// Severity / status badges
 // ---------------------------------------------------------------------------
-
 function SevBadge({ sev }: { sev: string }) {
-  const c = SEVERITY_COLOR[sev] ?? { bg: "#eee", text: "#333" };
-  return (
-    <span
-      style={{
-        background: c.bg,
-        color: c.text,
-        padding: "2px 8px",
-        borderRadius: 12,
-        fontSize: "0.72rem",
-        fontWeight: 700,
-        textTransform: "uppercase" as const,
-      }}
-    >
-      {sev}
-    </span>
-  );
+  const cfg = alertSeverityColors[sev] ?? { bg: colors.gray200, text: colors.gray700, label: sev };
+  return <Badge bg={cfg.bg} text={cfg.text} label={cfg.label} size="sm" dot />;
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const c = STATUS_COLOR[status] ?? { bg: "#eee", text: "#333" };
-  return (
-    <span
-      style={{
-        background: c.bg,
-        color: c.text,
-        padding: "2px 8px",
-        borderRadius: 12,
-        fontSize: "0.72rem",
-        fontWeight: 600,
-      }}
-    >
-      {status}
-    </span>
-  );
+  const cfg = alertStatusColors[status] ?? { bg: colors.gray200, text: colors.gray700, label: status };
+  return <Badge bg={cfg.bg} text={cfg.text} label={cfg.label} size="sm" />;
 }
 
 // ---------------------------------------------------------------------------
 // Detail panel
 // ---------------------------------------------------------------------------
-
-function DetailPanel({
-  alertId,
-  onClose,
-  onMutated,
-  isAdmin,
-  myId,
-}: {
+interface DetailPanelProps {
   alertId: string;
   onClose: () => void;
   onMutated: () => void;
   isAdmin: boolean;
   myId: string;
-}) {
+}
+
+function DetailPanel({ alertId, onClose, onMutated, isAdmin, myId }: DetailPanelProps) {
   const [alert, setAlert]         = useState<Alert | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [working, setWorking]     = useState(false);
 
-  // Assign picker state
   const [assignUserId, setAssignUserId] = useState("");
   const [users, setUsers]               = useState<{ id: string; username: string }[]>([]);
 
-  // Close note
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -108,7 +84,6 @@ function DetailPanel({
       .finally(() => setLoading(false));
   }, [alertId]);
 
-  // Load users for assign dropdown (ADMIN only)
   useEffect(() => {
     if (!isAdmin) return;
     apiClient
@@ -134,19 +109,79 @@ function DetailPanel({
     }
   };
 
-  if (loading) return (
-    <div style={panelStyle}>
-      <CloseBtn onClick={onClose} />
-      <div style={{ padding: "1.5rem", color: "#888" }}>Loading…</div>
-    </div>
+  const panelBase: React.CSSProperties = {
+    position: "relative",
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
+    boxShadow: shadows.md,
+    overflow: "hidden",
+    maxHeight: "calc(100vh - 140px)",
+    display: "flex",
+    flexDirection: "column",
+  };
+
+  const closeBtn = (
+    <button
+      onClick={onClose}
+      style={{
+        background: colors.gray100,
+        border: "none",
+        width: 30, height: 30, borderRadius: radius.md,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: colors.textSecondary, cursor: "pointer",
+      }}
+      title="Close"
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.background = colors.gray200;
+        (e.currentTarget as HTMLElement).style.color = colors.text;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background = colors.gray100;
+        (e.currentTarget as HTMLElement).style.color = colors.textSecondary;
+      }}
+    >
+      <X size={15} />
+    </button>
   );
 
-  if (error || !alert) return (
-    <div style={panelStyle}>
-      <CloseBtn onClick={onClose} />
-      <div style={{ padding: "1.5rem", color: "#d32f2f" }}>{error ?? "Not found"}</div>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div style={panelBase}>
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "1rem 1.25rem", borderBottom: `1px solid ${colors.border}`,
+        }}>
+          <div style={{ fontSize: font.size.md, fontWeight: font.weight.semibold, color: colors.text }}>
+            Alert Details
+          </div>
+          {closeBtn}
+        </div>
+        <div style={{ padding: "1.5rem", color: colors.textMuted, fontSize: font.size.sm }}>
+          Loading…
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !alert) {
+    return (
+      <div style={panelBase}>
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "1rem 1.25rem", borderBottom: `1px solid ${colors.border}`,
+        }}>
+          <div style={{ fontSize: font.size.md, fontWeight: font.weight.semibold, color: colors.text }}>
+            Alert Details
+          </div>
+          {closeBtn}
+        </div>
+        <div style={{ padding: "1.25rem" }}>
+          <AlertBanner type="error" message={error ?? "Not found"} />
+        </div>
+      </div>
+    );
+  }
 
   const canAck    = isAdmin && alert.status === "OPEN";
   const canAssign = isAdmin && alert.status === "ACKNOWLEDGED";
@@ -155,112 +190,153 @@ function DetailPanel({
     (isAdmin || alert.assigned_to_id === myId);
 
   return (
-    <div style={panelStyle}>
-      <CloseBtn onClick={onClose} />
+    <div style={panelBase}>
+      {/* Header */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "1rem 1.25rem",
+        borderBottom: `1px solid ${colors.border}`,
+        background: gradients.primarySoft,
+      }}>
+        <div style={{
+          fontSize: font.size.md,
+          fontWeight: font.weight.semibold,
+          color: colors.text,
+          letterSpacing: font.tracking.tight,
+        }}>
+          Alert Details
+        </div>
+        {closeBtn}
+      </div>
 
-      <div style={{ padding: "1.25rem 1.5rem" }}>
-        <div style={{ marginBottom: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" as const }}>
+      <div style={{ padding: "1.25rem 1.5rem", overflowY: "auto", flex: 1 }}>
+        {/* Badges */}
+        <div style={{ marginBottom: "0.9rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <SevBadge sev={alert.severity} />
           <StatusBadge status={alert.status} />
         </div>
 
-        <div style={{ fontSize: "0.9rem", lineHeight: 1.6, marginBottom: "1rem", wordBreak: "break-word" as const }}>
+        {/* Message */}
+        <div style={{
+          fontSize: font.size.base,
+          lineHeight: 1.6,
+          color: colors.text,
+          marginBottom: "1.25rem",
+          wordBreak: "break-word",
+          padding: "12px 14px",
+          background: colors.surfaceAlt,
+          borderRadius: radius.md,
+          border: `1px solid ${colors.border}`,
+        }}>
           {alert.message}
         </div>
 
-        <table style={{ fontSize: "0.78rem", color: "#555", borderCollapse: "collapse" as const, width: "100%", marginBottom: "1.25rem" }}>
-          <tbody>
-            <Row label="Type"      value={alert.alert_type} />
-            <Row label="Created"   value={fmtTime(alert.created_at)} />
-            <Row label="Updated"   value={fmtTime(alert.updated_at)} />
-            {alert.acknowledged_by_username && (
-              <Row label="Ack'd by"   value={`${alert.acknowledged_by_username} at ${fmtTime(alert.acknowledged_at!)}`} />
-            )}
-            {alert.assigned_to_username && (
-              <Row label="Assigned to" value={alert.assigned_to_username} />
-            )}
-            {alert.closed_by_username && (
-              <Row label="Closed by"  value={`${alert.closed_by_username} at ${fmtTime(alert.closed_at!)}`} />
-            )}
-            {alert.resolution_note && (
-              <Row label="Resolution" value={alert.resolution_note} />
-            )}
-          </tbody>
-        </table>
+        {/* Metadata */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr",
+          columnGap: "1rem",
+          rowGap: "0.55rem",
+          fontSize: font.size.sm,
+          marginBottom: "1.5rem",
+        }}>
+          <MetaRow label="Type"    value={alert.alert_type} />
+          <MetaRow label="Created" value={fmtTime(alert.created_at)} />
+          <MetaRow label="Updated" value={fmtTime(alert.updated_at)} />
+          {alert.acknowledged_by_username && (
+            <MetaRow
+              label="Ack'd by"
+              value={`${alert.acknowledged_by_username} · ${fmtTime(alert.acknowledged_at!)}`}
+            />
+          )}
+          {alert.assigned_to_username && (
+            <MetaRow label="Assigned to" value={alert.assigned_to_username} />
+          )}
+          {alert.closed_by_username && (
+            <MetaRow
+              label="Closed by"
+              value={`${alert.closed_by_username} · ${fmtTime(alert.closed_at!)}`}
+            />
+          )}
+          {alert.resolution_note && (
+            <MetaRow label="Resolution" value={alert.resolution_note} />
+          )}
+        </div>
 
         {actionErr && (
-          <div style={{ color: "#d32f2f", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-            {actionErr}
-          </div>
+          <AlertBanner type="error" message={actionErr} onClose={() => setActionErr(null)} />
         )}
 
         {/* Acknowledge */}
         {canAck && (
-          <Btn
-            label="Acknowledge"
-            color="#1976d2"
-            disabled={working}
+          <Button
+            variant="primary"
             onClick={() => act(() => integrationsApi.alerts.acknowledge(alert.id))}
-          />
+            loading={working}
+            icon={<CheckCircle2 size={15} />}
+            style={{ width: "100%", marginBottom: "0.75rem" }}
+          >
+            Acknowledge
+          </Button>
         )}
 
         {/* Assign */}
         {canAssign && (
-          <div style={{ marginBottom: "0.75rem" }}>
-            <select
-              value={assignUserId}
-              onChange={(e) => setAssignUserId(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="">Select user to assign…</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.username}</option>
-              ))}
-            </select>
-            <Btn
-              label="Assign"
-              color="#7b1fa2"
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "0.75rem" }}>
+            <Field label="Assign to">
+              <select
+                value={assignUserId}
+                onChange={(e) => setAssignUserId(e.target.value)}
+                style={selectStyle}
+              >
+                <option value="">Select user…</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.username}</option>
+                ))}
+              </select>
+            </Field>
+            <Button
+              variant="primary"
               disabled={working || !assignUserId}
-              onClick={() =>
-                act(() => integrationsApi.alerts.assign(alert.id, assignUserId))
-              }
-            />
+              loading={working}
+              onClick={() => act(() => integrationsApi.alerts.assign(alert.id, assignUserId))}
+              icon={<UserPlus size={15} />}
+              style={{ width: "100%" }}
+            >
+              Assign
+            </Button>
           </div>
         )}
 
         {/* Close */}
         {canClose && (
-          <div>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Resolution note (min 10 chars)"
-              rows={3}
-              style={{
-                width: "100%",
-                boxSizing: "border-box" as const,
-                padding: "0.5rem",
-                fontFamily: "monospace",
-                fontSize: "0.82rem",
-                border: `1px solid ${note.length > 0 && note.length < 10 ? "#d32f2f" : "#ccc"}`,
-                borderRadius: 4,
-                marginBottom: "0.5rem",
-                resize: "vertical" as const,
-              }}
-            />
-            {note.length > 0 && note.length < 10 && (
-              <div style={{ color: "#d32f2f", fontSize: "0.75rem", marginBottom: "0.5rem" }}>
-                At least 10 characters required
-              </div>
-            )}
-            <Btn
-              label="Close Alert"
-              color="#d32f2f"
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <Field
+              label="Resolution note"
+              required
+              error={note.length > 0 && note.length < 10 ? "At least 10 characters required." : undefined}
+            >
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Describe how this alert was resolved…"
+                rows={4}
+                style={{
+                  ...textareaStyle,
+                  borderColor: note.length > 0 && note.length < 10 ? colors.danger : colors.border,
+                }}
+              />
+            </Field>
+            <Button
+              variant="danger"
               disabled={working || note.trim().length < 10}
-              onClick={() =>
-                act(() => integrationsApi.alerts.close(alert.id, note.trim()))
-              }
-            />
+              loading={working}
+              onClick={() => act(() => integrationsApi.alerts.close(alert.id, note.trim()))}
+              icon={<XCircle size={15} />}
+              style={{ width: "100%" }}
+            >
+              Close Alert
+            </Button>
           </div>
         )}
       </div>
@@ -268,89 +344,34 @@ function DetailPanel({
   );
 }
 
-// Tiny helpers
-function Row({ label, value }: { label: string; value: string }) {
+function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <tr>
-      <td style={{ padding: "2px 8px 2px 0", color: "#999", whiteSpace: "nowrap" as const }}>{label}</td>
-      <td style={{ padding: "2px 0", wordBreak: "break-all" as const }}>{value}</td>
-    </tr>
+    <>
+      <div style={{
+        color: colors.textMuted,
+        fontWeight: font.weight.medium,
+        whiteSpace: "nowrap",
+        fontSize: font.size.xs,
+        textTransform: "uppercase",
+        letterSpacing: font.tracking.wider,
+        paddingTop: 2,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        color: colors.text,
+        wordBreak: "break-word",
+        fontSize: font.size.sm,
+      }}>
+        {value}
+      </div>
+    </>
   );
 }
-function CloseBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        position: "absolute" as const,
-        top: 10,
-        right: 14,
-        background: "none",
-        border: "none",
-        fontSize: "1.2rem",
-        cursor: "pointer",
-        color: "#888",
-      }}
-    >
-      ✕
-    </button>
-  );
-}
-function Btn({
-  label,
-  color,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  color: string;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        background: disabled ? "#ccc" : color,
-        color: "#fff",
-        border: "none",
-        borderRadius: 4,
-        padding: "0.45rem 1.1rem",
-        cursor: disabled ? "default" : "pointer",
-        fontSize: "0.82rem",
-        marginBottom: "0.5rem",
-        marginRight: "0.5rem",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-const panelStyle: React.CSSProperties = {
-  position: "relative",
-  background: "#fff",
-  border: "1px solid #e0e0e0",
-  borderRadius: 6,
-  overflowY: "auto",
-  maxHeight: "100%",
-};
-
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.4rem 0.5rem",
-  fontSize: "0.82rem",
-  border: "1px solid #ccc",
-  borderRadius: 4,
-  marginBottom: "0.5rem",
-  fontFamily: "monospace",
-};
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
-
 export default function AlertsPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "ADMIN";
@@ -365,6 +386,7 @@ export default function AlertsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setError(null);
     const params: Record<string, string> = {};
     if (statusFilter) params.status   = statusFilter;
     if (sevFilter)    params.severity = sevFilter;
@@ -377,129 +399,137 @@ export default function AlertsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const openCount = alerts.filter((a) => a.status === "OPEN").length;
+
   return (
-    <div style={{ padding: "2rem", fontFamily: "monospace", maxWidth: 1200, margin: "0 auto" }}>
-      <h2 style={{ margin: "0 0 1.25rem", fontSize: "1.25rem" }}>Alert Management</h2>
+    <div>
+      <PageHeader
+        title="Alert Management"
+        subtitle={loading
+          ? "Loading alerts…"
+          : `${alerts.length} alert${alerts.length === 1 ? "" : "s"} in view${openCount > 0 ? ` · ${openCount} open` : ""}`}
+        icon={<Bell size={22} />}
+        actions={
+          <Button
+            variant="secondary"
+            onClick={load}
+            loading={loading}
+            icon={<RefreshCw size={15} />}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatus(e.target.value)}
-          style={selectStyle}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s || "All statuses"}</option>
-          ))}
-        </select>
-        <select
-          value={sevFilter}
-          onChange={(e) => setSev(e.target.value)}
-          style={selectStyle}
-        >
-          {SEVERITY_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s || "All severities"}</option>
-          ))}
-        </select>
-        <button
-          onClick={load}
-          style={{
-            padding: "0.4rem 1rem",
-            background: "#555",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontSize: "0.82rem",
-          }}
-        >
-          Refresh
-        </button>
-      </div>
-
-      {error && (
-        <div style={{ color: "#d32f2f", marginBottom: "1rem", fontSize: "0.85rem" }}>{error}</div>
-      )}
-
-      {/* Layout: table + detail panel */}
-      <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start" }}>
-        {/* Table */}
-        <div style={{ flex: selectedId ? "1 1 55%" : "1 1 100%", minWidth: 0 }}>
-          {loading ? (
-            <div style={{ color: "#888", fontSize: "0.9rem" }}>Loading…</div>
-          ) : alerts.length === 0 ? (
-            <div style={{ color: "#aaa", fontSize: "0.9rem" }}>No alerts found.</div>
-          ) : (
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.82rem",
-              }}
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatus(e.target.value)}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={sevFilter}
+            onChange={(e) => setSev(e.target.value)}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            {SEVERITY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          {(statusFilter || sevFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setStatus(""); setSev(""); }}
             >
-              <thead>
-                <tr style={{ background: "#f5f5f5" }}>
-                  {["Severity", "Message", "Status", "Created", "Assigned To"].map((h) => (
-                    <th
-                      key={h}
+              Clear filters
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
+
+      {/* Table + detail panel */}
+      <div style={{
+        display: "flex",
+        gap: "1.15rem",
+        alignItems: "flex-start",
+      }}>
+        <div style={{ flex: selectedId ? "1 1 60%" : "1 1 100%", minWidth: 0 }}>
+          {loading ? (
+            <SkeletonTable rows={6} cols={5} />
+          ) : alerts.length === 0 ? (
+            <Card padding="0">
+              <EmptyState
+                icon="🔔"
+                title="No alerts"
+                description={statusFilter || sevFilter
+                  ? "Try clearing the filters to see more alerts."
+                  : "Alerts from integrations and sensors will appear here."}
+              />
+            </Card>
+          ) : (
+            <Table columns={["Severity", "Message", "Status", "Created", "Assigned To"]}>
+              {alerts.map((a) => (
+                <Tr
+                  key={a.id}
+                  onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
+                >
+                  <Td><SevBadge sev={a.severity} /></Td>
+                  <Td style={{ maxWidth: 320 }}>
+                    <span
+                      title={a.message}
                       style={{
-                        padding: "0.5rem 0.75rem",
-                        textAlign: "left",
-                        fontWeight: 600,
-                        borderBottom: "2px solid #e0e0e0",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((a) => (
-                  <tr
-                    key={a.id}
-                    onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
-                    style={{
-                      cursor: "pointer",
-                      background: a.id === selectedId ? "#e8f0fe" : "transparent",
-                      borderBottom: "1px solid #f0f0f0",
-                    }}
-                  >
-                    <td style={{ padding: "0.55rem 0.75rem" }}>
-                      <SevBadge sev={a.severity} />
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.55rem 0.75rem",
-                        maxWidth: 280,
+                        display: "block",
+                        maxWidth: 320,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
+                        color: colors.text,
+                        fontWeight: a.id === selectedId ? font.weight.semibold : font.weight.medium,
                       }}
-                      title={a.message}
                     >
                       {a.message}
-                    </td>
-                    <td style={{ padding: "0.55rem 0.75rem" }}>
-                      <StatusBadge status={a.status} />
-                    </td>
-                    <td style={{ padding: "0.55rem 0.75rem", whiteSpace: "nowrap" }}>
-                      {fmtTime(a.created_at)}
-                    </td>
-                    <td style={{ padding: "0.55rem 0.75rem", color: "#777" }}>
-                      {a.assigned_to_username ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </span>
+                  </Td>
+                  <Td><StatusBadge status={a.status} /></Td>
+                  <Td style={{
+                    color: colors.textMuted,
+                    fontSize: font.size.sm,
+                    whiteSpace: "nowrap",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {fmtTime(a.created_at)}
+                  </Td>
+                  <Td style={{ color: colors.textSecondary, fontSize: font.size.sm }}>
+                    {a.assigned_to_username ?? "—"}
+                  </Td>
+                </Tr>
+              ))}
+            </Table>
           )}
         </div>
 
         {/* Detail panel */}
         {selectedId && (
-          <div style={{ flex: "0 0 40%", minWidth: 300, position: "sticky", top: "1rem" }}>
+          <div style={{
+            flex: "0 0 38%",
+            minWidth: 340,
+            position: "sticky",
+            top: "1rem",
+          }}>
             <DetailPanel
               key={selectedId}
               alertId={selectedId}
@@ -514,3 +544,4 @@ export default function AlertsPage() {
     </div>
   );
 }
+

@@ -77,8 +77,17 @@ export const adminApi = {
     search?: string;
     cursor?: string;
   }): Promise<PaginatedUsers> {
-    const { data } = await apiClient.get("admin/users/", { params });
-    return data;
+    // The client interceptor unwraps paginated responses to a plain array on
+    // `response.data` and preserves the wrapper on `response.pagination`.
+    const response = await apiClient.get("admin/users/", { params });
+    const wrapper = (response as any).pagination as PaginatedUsers | undefined;
+    if (wrapper) return wrapper;
+    return {
+      count: Array.isArray(response.data) ? response.data.length : 0,
+      next_cursor: null,
+      previous_cursor: null,
+      results: response.data,
+    };
   },
 
   async getUser(userId: string): Promise<AdminUserDetail> {

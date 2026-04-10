@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Package, Download, Upload, Plus } from "lucide-react";
 import { assetsApi, type AssetSummary, type Classification, type Site } from "@/api/assets";
 import { useAuth } from "@/hooks/useAuth";
 import SearchInput from "@/components/SearchInput";
 import TreeSelect from "@/components/TreeSelect";
+import {
+  PageHeader, Button, Table, Tr, Td, Badge, EmptyState,
+  SkeletonTable, AlertBanner, Card,
+} from "@/components/ui";
+import { selectStyle } from "@/styles/forms";
+import { colors, font, radius } from "@/styles/tokens";
 
 export default function AssetsPage() {
   const navigate = useNavigate();
@@ -69,191 +76,191 @@ export default function AssetsPage() {
     }
   }
 
+  const columns = showDeleted
+    ? ["Asset Code", "Name", "Classification", "Site", "Ver.", "Last Updated", "Status"]
+    : ["Asset Code", "Name", "Classification", "Site", "Ver.", "Last Updated"];
+
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "0.5rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>Asset Ledger</h2>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={handleExport} disabled={exporting} style={outlineBtn}>
-            {exporting ? "Exporting…" : "⬇ Export"}
-          </button>
-          <button onClick={() => navigate("/assets/import")} style={outlineBtn}>
-            ⬆ Import
-          </button>
-          <button onClick={() => navigate("/assets/new")} style={primaryBtn}>
-            + New Asset
-          </button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title="Asset Ledger"
+        subtitle={count > 0 ? `${count.toLocaleString()} asset${count === 1 ? "" : "s"} tracked` : "Track and manage all physical assets"}
+        icon={<Package size={22} />}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={handleExport}
+              loading={exporting}
+              icon={<Download size={15} />}
+            >
+              Export
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/assets/import")}
+              icon={<Upload size={15} />}
+            >
+              Import
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => navigate("/assets/new")}
+              icon={<Plus size={16} />}
+            >
+              New Asset
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-        <SearchInput
-          value={search}
-          onChange={(v) => { setSearch(v); setCursor(null); }}
-          placeholder="Search code or name…"
-        />
-
-        <select
-          value={siteId}
-          onChange={(e) => { setSiteId(e.target.value); setCursor(null); }}
-          style={selectStyle}
-        >
-          <option value="">All Sites</option>
-          {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-
-        <TreeSelect
-          classifications={classifications}
-          value={clsId}
-          onChange={(v) => { setClsId(v); setCursor(null); }}
-          placeholder="All Classifications"
-        />
-
-        {isAdmin && (
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9rem", cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => { setShowDeleted(e.target.checked); setCursor(null); }}
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <div style={{ flex: "1 1 240px", minWidth: 220 }}>
+            <SearchInput
+              value={search}
+              onChange={(v) => { setSearch(v); setCursor(null); }}
+              placeholder="Search code or name…"
             />
-            Show deleted
-          </label>
-        )}
+          </div>
 
-        <select
-          value={pageSize}
-          onChange={(e) => { setPageSize(Number(e.target.value)); setCursor(null); }}
-          style={{ ...selectStyle, minWidth: "auto" }}
-        >
-          <option value={25}>25 / page</option>
-          <option value={50}>50 / page</option>
-          <option value={100}>100 / page</option>
-        </select>
-      </div>
+          <select
+            value={siteId}
+            onChange={(e) => { setSiteId(e.target.value); setCursor(null); }}
+            style={{ ...selectStyle, width: "auto", minWidth: 160 }}
+          >
+            <option value="">All Sites</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+
+          <TreeSelect
+            classifications={classifications}
+            value={clsId}
+            onChange={(v) => { setClsId(v); setCursor(null); }}
+            placeholder="All Classifications"
+          />
+
+          {isAdmin && (
+            <label style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              fontSize: font.size.sm,
+              color: colors.textSecondary,
+              fontWeight: font.weight.medium,
+              cursor: "pointer",
+              padding: "7px 12px",
+              background: showDeleted ? colors.primaryLight : colors.gray50,
+              border: `1px solid ${showDeleted ? colors.primaryMid : colors.border}`,
+              borderRadius: radius.md,
+              transition: "all 0.15s ease",
+            }}>
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => { setShowDeleted(e.target.checked); setCursor(null); }}
+                style={{ accentColor: colors.primary }}
+              />
+              Show deleted
+            </label>
+          )}
+
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCursor(null); }}
+            style={{ ...selectStyle, width: "auto" }}
+          >
+            <option value={25}>25 / page</option>
+            <option value={50}>50 / page</option>
+            <option value={100}>100 / page</option>
+          </select>
+        </div>
+      </Card>
 
       {/* Error */}
-      {error && (
-        <div style={{ background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       {/* Table */}
       {loading ? (
-        <p style={{ color: "#6c757d" }}>Loading…</p>
+        <SkeletonTable rows={6} cols={columns.length} />
+      ) : assets.length === 0 ? (
+        <Card padding="0">
+          <EmptyState
+            icon="📦"
+            title="No assets found"
+            description="Try adjusting your filters, or add a new asset to get started."
+            action={
+              <Button variant="primary" onClick={() => navigate("/assets/new")} icon={<Plus size={16} />}>
+                New Asset
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #dee2e6", textAlign: "left" }}>
-              <th style={th}>Asset Code</th>
-              <th style={th}>Name</th>
-              <th style={th}>Classification</th>
-              <th style={th}>Site</th>
-              <th style={th}>Ver.</th>
-              <th style={th}>Last Updated</th>
-              {showDeleted && <th style={th}>Status</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {assets.length === 0 ? (
-              <tr>
-                <td colSpan={showDeleted ? 7 : 6} style={{ padding: "1.5rem", textAlign: "center", color: "#6c757d" }}>
-                  No assets found.
-                </td>
-              </tr>
-            ) : assets.map((a) => (
-              <tr
-                key={a.id}
-                onClick={() => navigate(`/assets/${a.id}`)}
-                style={{ borderBottom: "1px solid #dee2e6", cursor: "pointer", opacity: a.is_deleted ? 0.55 : 1 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-              >
-                <td style={td}><code style={{ fontWeight: 600 }}>{a.asset_code}</code></td>
-                <td style={td}>{a.name}</td>
-                <td style={td}>{a.classification_name}</td>
-                <td style={td}>{a.site_name}</td>
-                <td style={{ ...td, textAlign: "center" }}>{a.current_version_number ?? "—"}</td>
-                <td style={td}>{a.updated_at ? new Date(a.updated_at).toLocaleDateString() : "—"}</td>
-                {showDeleted && (
-                  <td style={td}>
-                    {a.is_deleted && (
-                      <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "0.75rem", fontWeight: 600, background: "#e2e3e5", color: "#41464b" }}>
-                        Deleted
-                      </span>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table columns={columns}>
+          {assets.map((a) => (
+            <Tr key={a.id} onClick={() => navigate(`/assets/${a.id}`)} muted={a.is_deleted}>
+              <Td>
+                <code style={{
+                  fontWeight: font.weight.semibold,
+                  color: colors.primary,
+                  background: colors.primaryLight,
+                  padding: "2px 8px",
+                  borderRadius: radius.sm,
+                  fontSize: font.size.xs,
+                }}>
+                  {a.asset_code}
+                </code>
+              </Td>
+              <Td style={{ fontWeight: font.weight.medium }}>{a.name}</Td>
+              <Td style={{ color: colors.textSecondary }}>{a.classification_name}</Td>
+              <Td style={{ color: colors.textSecondary }}>{a.site_name}</Td>
+              <Td style={{ textAlign: "center", color: colors.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                {a.current_version_number ?? "—"}
+              </Td>
+              <Td style={{ color: colors.textMuted, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+                {a.updated_at ? new Date(a.updated_at).toLocaleDateString() : "—"}
+              </Td>
+              {showDeleted && (
+                <Td>
+                  {a.is_deleted && (
+                    <Badge bg={colors.gray200} text={colors.gray700} label="Deleted" size="sm" />
+                  )}
+                </Td>
+              )}
+            </Tr>
+          ))}
+        </Table>
       )}
 
       {/* Pagination */}
       {(prevCursor || nextCursor) && (
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button onClick={() => setCursor(prevCursor)} disabled={!prevCursor} style={pagBtn}>← Prev</button>
-          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>{count} total</span>
-          <button onClick={() => setCursor(nextCursor)} disabled={!nextCursor} style={pagBtn}>Next →</button>
+        <div style={{
+          marginTop: "1.15rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "0.6rem",
+        }}>
+          <span style={{ fontSize: font.size.sm, color: colors.textMuted }}>
+            {count.toLocaleString()} total
+          </span>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button variant="secondary" size="sm" disabled={!prevCursor} onClick={() => setCursor(prevCursor)}>
+              ← Prev
+            </Button>
+            <Button variant="secondary" size="sm" disabled={!nextCursor} onClick={() => setCursor(nextCursor)}>
+              Next →
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const selectStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  border: "1px solid #ced4da",
-  borderRadius: "6px",
-  fontSize: "0.9rem",
-};
-
-const primaryBtn: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "#0d6efd",
-  color: "#fff",
-  border: "none",
-  borderRadius: "6px",
-  cursor: "pointer",
-  fontWeight: 600,
-};
-
-const outlineBtn: React.CSSProperties = {
-  padding: "8px 14px",
-  background: "#fff",
-  color: "#0d6efd",
-  border: "1px solid #0d6efd",
-  borderRadius: "6px",
-  cursor: "pointer",
-  fontWeight: 500,
-};
-
-const th: React.CSSProperties = {
-  padding: "10px 12px",
-  fontWeight: 600,
-  fontSize: "0.82rem",
-  color: "#495057",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
-const td: React.CSSProperties = {
-  padding: "10px 12px",
-  verticalAlign: "middle",
-};
-
-const pagBtn: React.CSSProperties = {
-  padding: "5px 12px",
-  border: "1px solid #ced4da",
-  borderRadius: "6px",
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: "0.85rem",
-};

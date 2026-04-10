@@ -80,14 +80,16 @@ class IdempotencyRecord(models.Model):
     Records older than 24 hours may be hard-deleted by a scheduled task.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    key = models.CharField(max_length=255, unique=True, db_index=True)
+    key = models.CharField(max_length=255, db_index=True)
     endpoint = models.CharField(max_length=500)
+    actor_id = models.CharField(max_length=100, blank=True, default="anonymous")
     response_status = models.PositiveSmallIntegerField()
     response_body = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         db_table = "core_idempotency_record"
+        unique_together = [("key", "endpoint", "actor_id")]
 
 
 class RequestLog(models.Model):

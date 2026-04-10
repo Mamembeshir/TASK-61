@@ -76,12 +76,21 @@ Expected response:
 
 Navigate to **http://localhost:5173** in your browser.
 
-Log in with the demo admin account:
+#### Seeded demo accounts
 
-| Field    | Value            |
-|----------|-----------------|
-| Username | `admin.coastal` |
-| Password | `Demo@pass1!`   |
+All accounts share the same password: **`Demo@pass1!`**
+
+| Username          | Role    | Sites assigned             | Notes                              |
+|-------------------|---------|----------------------------|------------------------------------|
+| `admin.coastal`   | ADMIN   | *(all — tenant admin)*     | Django staff; full tenant access   |
+| `alice.staff`     | STAFF   | Main Campus, North Campus  |                                    |
+| `bob.staff`       | STAFF   | South Campus               |                                    |
+| `carlos.courier`  | COURIER | Main Campus                |                                    |
+| `diana.courier`   | COURIER | North Campus, South Campus |                                    |
+
+All five users belong to the **Coastal University** tenant and are seeded by
+`python manage.py seed_demo_data` (which runs automatically on first boot when
+`DJANGO_DEBUG=true`).
 
 ### 4. Run the test suite
 
@@ -114,7 +123,7 @@ Key variables:
 | `DJANGO_SECRET_KEY` | `dev-secret-key-…` | Django secret (change in production!) |
 | `DJANGO_DEBUG` | `true` | Debug mode — also enables auto-seeding |
 | `DB_PASSWORD` | `harborops` | MySQL password |
-| `FIELD_ENCRYPTION_KEY` | *(dev key)* | AES-256 key for government ID field |
+| `FIELD_ENCRYPTION_KEY` | *(built-in dev key when `DJANGO_DEBUG=true`)* | AES-256 key for encrypted PII fields. **Required** in production — startup fails loudly if `DJANGO_DEBUG=false` and it is unset. Generate with `python -c "import secrets, base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"` |
 | `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
 
 ---
@@ -152,7 +161,7 @@ Frontend (React 18 + Vite)  :5173
         │
         │  HTTP / REST (Token auth)
         ▼
-Backend (Django 4 + DRF)    :8000
+Backend (Django 5 + DRF)    :8000
         │
    ┌────┴────┐
    │         │
@@ -161,9 +170,8 @@ MySQL :3306  Redis :6379
         Celery Worker + Beat
 ```
 
-Full architecture documentation: [`../docs/design.md`](../docs/design.md)  
-API reference: [`../docs/api-spec.md`](../docs/api-spec.md)  
-Business logic Q&A: [`../docs/questions.md`](../docs/questions.md)
+Architecture, API reference, and business logic decisions are documented in
+inline code comments and Django model/view docstrings throughout the codebase.
 
 ---
 

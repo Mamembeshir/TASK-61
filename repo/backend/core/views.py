@@ -1,9 +1,24 @@
+import logging
+
+from rest_framework import serializers
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import AuditLog
+from core.pagination import paginate_list
+
+
+class _AuditLogSerializer(serializers.ModelSerializer):
+    id        = serializers.UUIDField()
+    timestamp = serializers.DateTimeField()
+
+    class Meta:
+        model  = AuditLog
+        fields = ["id", "entity_type", "entity_id", "action", "actor_username", "timestamp"]
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(["GET"])
@@ -27,7 +42,8 @@ def health_check(request):
             cursor.execute("SELECT 1")
         checks["database"] = "ok"
     except Exception as exc:  # noqa: BLE001
-        checks["database"] = f"error: {exc}"
+        logger.error("Health check: database probe failed", exc_info=exc)
+        checks["database"] = "error"
         overall_ok = False
 
     # Redis
@@ -57,8 +73,8 @@ def health_check(request):
 class AuditLogListView(APIView):
     """
     GET /api/v1/core/audit-log/
-    Returns the last 20 AuditLog entries scoped to the current user's tenant.
-    COURIER role is excluded (403).
+    Returns paginated AuditLog entries scoped to the current user's tenant,
+    newest first. COURIER role is excluded (403).
     """
     permission_classes = [IsAuthenticated]
 
@@ -70,18 +86,6 @@ class AuditLogListView(APIView):
         qs = (
             AuditLog.objects
             .filter(tenant_id=request.user.tenant_id)
-            .order_by("-timestamp")[:20]
+            .order_by("-timestamp")
         )
-
-        data = [
-            {
-                "id":             str(e.id),
-                "entity_type":    e.entity_type,
-                "entity_id":      e.entity_id,
-                "action":         e.action,
-                "actor_username": e.actor_username,
-                "timestamp":      e.timestamp.isoformat(),
-            }
-            for e in qs
-        ]
-        return Response(data)
+        return paginate_list(request, qs, _AuditLogSerializer, ordering="-timestamp")

@@ -1,4 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* =============================================================
+   HarborOps Global Styles
+   ============================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Design tokens (for CSS rules that can't easily import from tokens.ts) ─ */
+:root {
+  --hb-bg:           #F6F7FB;
+  --hb-surface:      #FFFFFF;
+  --hb-border:       #E5E7EF;
+  --hb-text:         #0F172A;
+  --hb-text-muted:   #94A3B8;
+  --hb-primary:      #4F46E5;
+  --hb-primary-soft: rgba(79, 70, 229, 0.12);
+
+  --hb-shadow-sm:    0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+  --hb-shadow-md:    0 2px 4px rgba(15,23,42,0.04), 0 6px 20px -4px rgba(15,23,42,0.08);
+  --hb-shadow-lg:    0 4px 8px rgba(15,23,42,0.06), 0 16px 40px -8px rgba(15,23,42,0.12);
+
+  --hb-radius-sm:    6px;
+  --hb-radius-md:    8px;
+  --hb-radius-lg:    12px;
+
+  --hb-ease:         cubic-bezier(0.4, 0, 0.2, 1);
+}
 
 /* ── Reset & base ─────────────────────────────────────────── */
 *, *::before, *::after {
@@ -12,50 +36,113 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 0.875rem;
-  line-height: 1.6;
-  color: #0F172A;
-  background: #F1F5F9;
+  line-height: 1.55;
+  color: var(--hb-text);
+  background: var(--hb-bg);
+  font-feature-settings: "cv11", "ss01", "ss03", "cv03";
+  overflow-x: hidden;
 }
 
-/* ── Scrollbar ────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+#root {
+  min-height: 100vh;
+}
+
+/* ── Scrollbar (webkit) ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s var(--hb-ease);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+/* Dark scrollbar for the sidebar */
+.hb-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  background-clip: padding-box;
+}
+.hb-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+}
 
 /* ── Focus ring ───────────────────────────────────────────── */
+:focus {
+  outline: none;
+}
 :focus-visible {
-  outline: 2px solid #6366F1;
+  outline: 2px solid var(--hb-primary);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* ── Links ────────────────────────────────────────────────── */
-a { color: inherit; text-decoration: none; }
-
-/* ── Selection ────────────────────────────────────────────── */
-::selection { background: #C7D2FE; color: #1E1B4B; }
-
-/* ── Transitions ──────────────────────────────────────────── */
-button, a, input, select, textarea {
-  transition: all 0.15s ease;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-/* ── Remove default button chrome ────────────────────────── */
+/* ── Selection ────────────────────────────────────────────── */
+::selection {
+  background: rgba(79, 70, 229, 0.22);
+  color: #1E1B4B;
+}
+
+/* ── Base form elements ───────────────────────────────────── */
+button, a, input, select, textarea {
+  transition: all 0.18s var(--hb-ease);
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
+  background: none;
+  border: none;
 }
 
-/* ── Input base ───────────────────────────────────────────── */
 input, select, textarea {
   font-family: inherit;
   font-size: 0.875rem;
+  color: var(--hb-text);
 }
+
+input::placeholder,
+textarea::placeholder {
+  color: #B4BECB;
+  font-weight: 400;
+}
+
+/* Disable number input spinners in most browsers */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
 
 /* ── Table ────────────────────────────────────────────────── */
 table {
@@ -64,7 +151,167 @@ table {
 }
 
 /* ── Code ─────────────────────────────────────────────────── */
-code {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+code, pre {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
   font-size: 0.8125rem;
+}
+
+/* ── Headings ─────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--hb-text);
+}
+
+/* ── Reusable animations ──────────────────────────────────── */
+@keyframes hb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes hb-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hb-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hb-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes hb-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes hb-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes hb-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+.hb-fade-in   { animation: hb-fade-in   0.24s var(--hb-ease) both; }
+.hb-slide-up  { animation: hb-slide-up  0.28s var(--hb-ease) both; }
+.hb-slide-down{ animation: hb-slide-down 0.28s var(--hb-ease) both; }
+.hb-scale-in  { animation: hb-scale-in  0.22s var(--hb-ease) both; }
+
+/* ── Auth page branding panel: visible on desktop ─────────── */
+@media (min-width: 900px) {
+  .auth-panel {
+    display: flex !important;
+  }
+}
+
+/* ── Hide scrollbar but keep functionality ───────────────── */
+.hb-scroll-hidden::-webkit-scrollbar { display: none; }
+.hb-scroll-hidden { scrollbar-width: none; }
+
+/* ── Card hover lift (utility for plain elements) ────────── */
+.hb-lift {
+  transition: transform 0.2s var(--hb-ease), box-shadow 0.2s var(--hb-ease);
+}
+.hb-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--hb-shadow-lg);
+}
+
+/* ── Responsive: mobile/tablet helpers ────────────────────── */
+
+/* Mobile top app-bar (used by Layout on compact viewports) */
+.hb-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--hb-surface);
+  border-bottom: 1px solid var(--hb-border);
+  box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.hb-topbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--hb-radius-md);
+  background: var(--hb-primary-soft);
+  color: var(--hb-primary);
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  flex-shrink: 0;
+}
+.hb-topbar-button:hover {
+  background: rgba(79, 70, 229, 0.18);
+}
+
+/* Mobile drawer overlay backdrop */
+.hb-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 99;
+  animation: hb-fade-in 0.2s var(--hb-ease) both;
+}
+
+/* Sliding drawer container */
+.hb-drawer-slide {
+  animation: hb-slide-in-left 0.28s var(--hb-ease) both;
+}
+@keyframes hb-slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Main scroll region — tighter padding on small screens */
+.hb-main {
+  padding: 2.25rem 2.5rem 3rem;
+}
+@media (max-width: 1023px) {
+  .hb-main { padding: 1.5rem 1.5rem 2.25rem; }
+}
+@media (max-width: 767px) {
+  .hb-main { padding: 1rem 1rem 1.75rem; }
+}
+
+/* Collapse 2-column form rows to single column on small screens.
+   Apply to a CSS-grid container that has gridTemplateColumns set inline. */
+@media (max-width: 767px) {
+  .hb-stack-sm {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Hide an element on small viewports */
+@media (max-width: 767px) {
+  .hb-hide-sm { display: none !important; }
+}
+
+/* PageHeader title scaling on small screens */
+@media (max-width: 767px) {
+  .hb-page-title {
+    font-size: 1.35rem !important;
+    line-height: 1.25 !important;
+  }
+  .hb-page-icon {
+    width: 38px !important;
+    height: 38px !important;
+  }
+}
+
+/* ── Prefers reduced motion ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

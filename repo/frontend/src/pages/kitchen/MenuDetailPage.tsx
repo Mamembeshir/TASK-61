@@ -1,11 +1,17 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, ClipboardList, Plus } from "lucide-react";
 import {
   menuApi, foodSiteApi,
   type MenuDetail, type MenuVersionRead, type FoodSite,
 } from "@/api/foodservice";
 import { useAuth } from "@/hooks/useAuth";
 import StatusBadge from "@/components/StatusBadge";
+import {
+  PageHeader, Button, Card, Table, Tr, Td,
+  AlertBanner, Modal,
+} from "@/components/ui";
+import { colors, font, radius, transition } from "@/styles/tokens";
 
 type Tab = "detail" | "history";
 
@@ -99,7 +105,7 @@ export default function MenuDetailPage() {
   async function handleNewVersion() {
     if (!id) return;
     try {
-      const v = await menuApi.versions.create(id, { description: "New version", groups: [] });
+      await menuApi.versions.create(id, { description: "New version", groups: [] });
       await load();
       setTab("history");
     } catch (e: any) {
@@ -107,49 +113,91 @@ export default function MenuDetailPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: "1.5rem" }}>Loading…</div>;
-  if (error)   return <div style={{ padding: "1.5rem", color: "#842029" }}>{error}</div>;
-  if (!menu)   return null;
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Loading menu…" icon={<ClipboardList size={22} />} />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="Menu" icon={<ClipboardList size={22} />} />
+        <AlertBanner type="error" message={error} />
+      </div>
+    );
+  }
+  if (!menu) return null;
 
-  // STAFF only sees assigned sites — the backend enforces this on publish; here we just show all
   const displaySites = sites;
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "960px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate("/kitchen/menus")} style={backBtn}>← Menus</button>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>{menu.name}</h2>
-        {publishedVersion
-          ? <StatusBadge status="PUBLISHED" />
-          : <StatusBadge status="DRAFT" />}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
-          {publishedVersion && (
-            <button onClick={() => setUnpubTarget(publishedVersion)} style={warnBtn}>Unpublish</button>
-          )}
-          {latestVersion?.status === "DRAFT" && (
-            <button onClick={() => openPublish(latestVersion)} style={primaryBtn}>Publish…</button>
-          )}
-          <button onClick={handleNewVersion} style={outlineBtn}>New Version</button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title={menu.name}
+        subtitle={publishedVersion
+          ? `Published v${publishedVersion.version_number}`
+          : latestVersion
+            ? `Latest draft v${latestVersion.version_number}`
+            : "No versions yet"}
+        icon={<ClipboardList size={22} />}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/kitchen/menus")}
+              icon={<ArrowLeft size={14} />}
+            >
+              Menus
+            </Button>
+            {publishedVersion
+              ? <StatusBadge status="PUBLISHED" size="md" />
+              : <StatusBadge status="DRAFT" size="md" />}
+            {publishedVersion && (
+              <Button variant="secondary" onClick={() => setUnpubTarget(publishedVersion)}>
+                Unpublish
+              </Button>
+            )}
+            {latestVersion?.status === "DRAFT" && (
+              <Button variant="primary" onClick={() => openPublish(latestVersion)}>
+                Publish…
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleNewVersion} icon={<Plus size={14} />}>
+              New Version
+            </Button>
+          </>
+        }
+      />
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #dee2e6", marginBottom: "1.5rem" }}>
+      <div style={{
+        display: "flex",
+        gap: 0,
+        borderBottom: `1px solid ${colors.border}`,
+        marginBottom: "1.5rem",
+      }}>
         {(["detail", "history"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              padding: "8px 18px",
+              padding: "10px 20px",
               border: "none",
               background: "transparent",
               cursor: "pointer",
-              fontWeight: tab === t ? 700 : 400,
-              borderBottom: tab === t ? "2px solid #0d6efd" : "2px solid transparent",
-              marginBottom: "-2px",
-              color: tab === t ? "#0d6efd" : "#495057",
-              fontSize: "0.9rem",
+              fontWeight: tab === t ? font.weight.semibold : font.weight.medium,
+              borderBottom: tab === t
+                ? `2px solid ${colors.primary}`
+                : "2px solid transparent",
+              marginBottom: "-1px",
+              color: tab === t ? colors.primary : colors.textMuted,
+              fontSize: font.size.base,
+              fontFamily: font.family,
+              letterSpacing: "0.005em",
+              transition: `color ${transition.fast}, border-color ${transition.fast}`,
             }}
           >
             {t === "detail" ? "Current Version" : "Version History"}
@@ -162,165 +210,261 @@ export default function MenuDetailPage() {
           {publishedVersion ? (
             <VersionDetail version={publishedVersion} />
           ) : latestVersion ? (
-            <div>
-              <div style={{ color: "#6c757d", fontSize: "0.9rem", marginBottom: "1rem" }}>
-                Showing latest draft (v{latestVersion.version_number}) — not yet published.
-              </div>
+            <>
+              <AlertBanner
+                type="info"
+                message={`Showing latest draft (v${latestVersion.version_number}) — not yet published.`}
+              />
               <VersionDetail version={latestVersion} />
-            </div>
+            </>
           ) : (
-            <p style={{ color: "#6c757d" }}>No versions yet.</p>
+            <Card>
+              <p style={{ color: colors.textMuted, margin: 0 }}>No versions yet.</p>
+            </Card>
           )}
         </>
       )}
 
       {tab === "history" && (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #dee2e6" }}>
-              <th style={th}>Ver.</th>
-              <th style={th}>Status</th>
-              <th style={th}>Groups</th>
-              <th style={th}>Sites</th>
-              <th style={th}>Created</th>
-              <th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {menu.versions.map((v) => (
-              <tr key={v.id} style={{ borderBottom: "1px solid #dee2e6" }}>
-                <td style={td}>v{v.version_number}</td>
-                <td style={td}><StatusBadge status={v.status} /></td>
-                <td style={td}>{v.groups.length}</td>
-                <td style={td}>{v.site_releases.length}</td>
-                <td style={td}>{new Date(v.created_at).toLocaleDateString()}</td>
-                <td style={{ ...td, display: "flex", gap: "0.5rem" }}>
+        <Table columns={["Ver.", "Status", "Groups", "Sites", "Created", ""]}>
+          {menu.versions.map((v) => (
+            <Tr key={v.id}>
+              <Td style={{
+                fontVariantNumeric: "tabular-nums",
+                fontFamily: font.familyMono,
+                fontWeight: font.weight.semibold,
+                color: colors.text,
+              }}>
+                v{v.version_number}
+              </Td>
+              <Td><StatusBadge status={v.status} /></Td>
+              <Td style={{ fontVariantNumeric: "tabular-nums", color: colors.textSecondary }}>
+                {v.groups.length}
+              </Td>
+              <Td style={{ fontVariantNumeric: "tabular-nums", color: colors.textSecondary }}>
+                {v.site_releases.length}
+              </Td>
+              <Td style={{ color: colors.textMuted, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+                {new Date(v.created_at).toLocaleDateString()}
+              </Td>
+              <Td>
+                <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
                   {v.status === "DRAFT" && (
-                    <button onClick={() => openPublish(v)} style={publishBtn}>Publish…</button>
+                    <Button size="sm" variant="primary" onClick={() => openPublish(v)}>
+                      Publish…
+                    </Button>
                   )}
                   {v.status === "PUBLISHED" && (
-                    <button onClick={() => setUnpubTarget(v)} style={warnBtn}>Unpublish</button>
+                    <Button size="sm" variant="secondary" onClick={() => setUnpubTarget(v)}>
+                      Unpublish
+                    </Button>
                   )}
                   {v.status === "UNPUBLISHED" && currentUser?.role === "ADMIN" && (
-                    <button onClick={() => handleArchive(v)} style={archiveBtn}>Archive</button>
+                    <Button size="sm" variant="ghost" onClick={() => handleArchive(v)}>
+                      Archive
+                    </Button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
 
       {/* Publish modal */}
-      {publishTarget && (
-        <div style={overlay} onClick={() => setPublishTarget(null)}>
-          <div style={modalBox} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 0.5rem" }}>Publish v{publishTarget.version_number}</h3>
-            <p style={{ color: "#856404", background: "#fff3cd", padding: "8px 12px", borderRadius: "6px", fontSize: "0.85rem", margin: "0 0 1rem" }}>
-              Publishing will unpublish any previous version at selected sites.
-            </p>
-            <p style={{ fontWeight: 500, margin: "0 0 0.5rem", fontSize: "0.9rem" }}>Select sites:</p>
-            {displaySites.length === 0 ? (
-              <p style={{ color: "#6c757d" }}>No sites available.</p>
-            ) : (
-              <div style={{ maxHeight: "220px", overflowY: "auto", border: "1px solid #dee2e6", borderRadius: "6px", marginBottom: "1rem" }}>
-                {displaySites.map((s) => (
-                  <label
-                    key={s.id}
-                    style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSites.has(s.id)}
-                      onChange={() => {
-                        setSelectedSites((prev) => {
-                          const next = new Set(prev);
-                          next.has(s.id) ? next.delete(s.id) : next.add(s.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    {s.name}
-                  </label>
-                ))}
-              </div>
-            )}
-            {publishError && (
-              <div style={{ background: "#f8d7da", color: "#842029", padding: "8px 12px", borderRadius: "6px", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
-                {publishError}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setPublishTarget(null)} style={outlineBtn}>Cancel</button>
-              <button onClick={handlePublish} disabled={publishing} style={primaryBtn}>
-                {publishing ? "Publishing…" : "Publish"}
-              </button>
-            </div>
+      <Modal
+        open={!!publishTarget}
+        onClose={() => setPublishTarget(null)}
+        title={publishTarget ? `Publish v${publishTarget.version_number}` : ""}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPublishTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handlePublish} loading={publishing}>
+              Publish
+            </Button>
+          </>
+        }
+      >
+        <AlertBanner
+          type="warning"
+          message="Publishing will unpublish any previous version at selected sites."
+        />
+        <p style={{
+          fontWeight: font.weight.semibold,
+          fontSize: font.size.sm,
+          color: colors.textSecondary,
+          margin: "0 0 0.5rem",
+          textTransform: "uppercase",
+          letterSpacing: font.tracking.wider,
+        }}>
+          Select sites
+        </p>
+        {displaySites.length === 0 ? (
+          <p style={{ color: colors.textMuted, fontSize: font.size.sm }}>
+            No sites available.
+          </p>
+        ) : (
+          <div style={{
+            maxHeight: "240px",
+            overflowY: "auto",
+            border: `1px solid ${colors.border}`,
+            borderRadius: radius.md,
+            marginBottom: "0.75rem",
+            background: colors.surfaceAlt,
+          }}>
+            {displaySites.map((s, i) => (
+              <label
+                key={s.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  borderBottom: i < displaySites.length - 1 ? `1px solid ${colors.border}` : undefined,
+                  fontSize: font.size.base,
+                  color: colors.text,
+                  transition: `background ${transition.fast}`,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = colors.surface)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSites.has(s.id)}
+                  onChange={() => {
+                    setSelectedSites((prev) => {
+                      const next = new Set(prev);
+                      next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+                      return next;
+                    });
+                  }}
+                />
+                {s.name}
+              </label>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+        {publishError && <AlertBanner type="error" message={publishError} />}
+      </Modal>
 
       {/* Unpublish confirm */}
-      {unpubTarget && (
-        <div style={overlay} onClick={() => setUnpubTarget(null)}>
-          <div style={modalBox} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 0.75rem" }}>Unpublish v{unpubTarget.version_number}?</h3>
-            <p style={{ color: "#495057", fontSize: "0.9rem" }}>
-              This menu version will no longer be visible at its released sites.
-            </p>
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", marginTop: "1rem" }}>
-              <button onClick={() => setUnpubTarget(null)} style={outlineBtn}>Cancel</button>
-              <button onClick={() => handleUnpublish(unpubTarget)} disabled={unpublishing} style={warnBtn}>
-                {unpublishing ? "Unpublishing…" : "Unpublish"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!unpubTarget}
+        onClose={() => setUnpubTarget(null)}
+        title={unpubTarget ? `Unpublish v${unpubTarget.version_number}?` : ""}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setUnpubTarget(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => unpubTarget && handleUnpublish(unpubTarget)}
+              loading={unpublishing}
+            >
+              Unpublish
+            </Button>
+          </>
+        }
+      >
+        <p style={{ color: colors.textSecondary, fontSize: font.size.base, margin: 0 }}>
+          This menu version will no longer be visible at its released sites.
+        </p>
+      </Modal>
     </div>
   );
 }
 
 function VersionDetail({ version }: { version: MenuVersionRead }) {
   if (version.groups.length === 0) {
-    return <p style={{ color: "#6c757d" }}>No groups in this version.</p>;
+    return (
+      <Card>
+        <p style={{ color: colors.textMuted, margin: 0 }}>No groups in this version.</p>
+      </Card>
+    );
   }
 
   return (
     <div>
       {version.groups.map((g) => (
-        <div key={g.id} style={{ marginBottom: "1.5rem", border: "1px solid #dee2e6", borderRadius: "8px", overflow: "hidden" }}>
-          <div style={{ padding: "10px 16px", background: "#f8f9fa", borderBottom: "1px solid #dee2e6" }}>
-            <span style={{ fontWeight: 600, fontSize: "1rem" }}>{g.name}</span>
+        <Card key={g.id} padding="0" style={{ marginBottom: "1.25rem" }}>
+          <div style={{
+            padding: "14px 18px",
+            background: colors.surfaceAlt,
+            borderBottom: `1px solid ${colors.border}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}>
+            <span style={{
+              fontWeight: font.weight.semibold,
+              fontSize: font.size.md,
+              color: colors.text,
+              letterSpacing: font.tracking.tight,
+            }}>
+              {g.name}
+            </span>
             {g.availability_start && g.availability_end && (
-              <span style={{ marginLeft: "12px", color: "#6c757d", fontSize: "0.85rem" }}>
-                · {fmtTime(g.availability_start)} – {fmtTime(g.availability_end)}
+              <span style={{
+                fontSize: font.size.xs,
+                color: colors.textMuted,
+                padding: "3px 9px",
+                borderRadius: radius.full,
+                background: colors.surface,
+                border: `1px solid ${colors.border}`,
+                fontWeight: font.weight.medium,
+              }}>
+                {fmtTime(g.availability_start)} – {fmtTime(g.availability_end)}
               </span>
             )}
+            <span style={{
+              marginLeft: "auto",
+              fontSize: font.size.xs,
+              color: colors.textMuted,
+              fontWeight: font.weight.semibold,
+              textTransform: "uppercase",
+              letterSpacing: font.tracking.wider,
+            }}>
+              {g.items.length} item{g.items.length === 1 ? "" : "s"}
+            </span>
           </div>
           {g.items.length === 0 ? (
-            <p style={{ padding: "12px 16px", color: "#6c757d", fontSize: "0.88rem", margin: 0 }}>No items.</p>
+            <p style={{
+              padding: "14px 18px",
+              color: colors.textMuted,
+              fontSize: font.size.sm,
+              margin: 0,
+            }}>
+              No items.
+            </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #dee2e6", background: "#fafafa" }}>
-                  <th style={th}>Dish</th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.items.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                    <td style={td}>{item.dish_name}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div>
+              {g.items.map((item, i) => (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: "12px 18px",
+                    borderBottom: i < g.items.length - 1 ? `1px solid ${colors.border}` : undefined,
+                    fontSize: font.size.base,
+                    color: colors.text,
+                  }}
+                >
+                  {item.dish_name}
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+        </Card>
       ))}
       {version.site_releases.length > 0 && (
-        <div style={{ fontSize: "0.85rem", color: "#6c757d" }}>
-          Released at {version.site_releases.length} site(s).
+        <div style={{
+          fontSize: font.size.sm,
+          color: colors.textMuted,
+          textAlign: "center",
+          padding: "0.5rem",
+        }}>
+          Released at {version.site_releases.length} site{version.site_releases.length === 1 ? "" : "s"}.
         </div>
       )}
     </div>
@@ -328,7 +472,6 @@ function VersionDetail({ version }: { version: MenuVersionRead }) {
 }
 
 function fmtTime(t: string): string {
-  // "HH:MM:SS" → "H:MM AM/PM"
   try {
     const [h, m] = t.split(":").map(Number);
     const ampm = h >= 12 ? "PM" : "AM";
@@ -338,14 +481,3 @@ function fmtTime(t: string): string {
     return t;
   }
 }
-
-const primaryBtn: React.CSSProperties = { padding: "8px 16px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 };
-const outlineBtn: React.CSSProperties = { padding: "7px 14px", background: "#fff", color: "#0d6efd", border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const warnBtn: React.CSSProperties    = { padding: "7px 14px", background: "#fff", color: "#856404", border: "1px solid #ffc107", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const archiveBtn: React.CSSProperties = { padding: "4px 10px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "5px", cursor: "pointer", fontSize: "0.8rem" };
-const publishBtn: React.CSSProperties = { padding: "4px 10px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "5px", cursor: "pointer", fontSize: "0.8rem" };
-const backBtn: React.CSSProperties    = { padding: "6px 12px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const th: React.CSSProperties         = { padding: "8px 14px", fontWeight: 600, fontSize: "0.78rem", color: "#495057", textTransform: "uppercase" as const, textAlign: "left" as const };
-const td: React.CSSProperties         = { padding: "8px 14px", verticalAlign: "middle" };
-const overlay: React.CSSProperties    = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 };
-const modalBox: React.CSSProperties   = { background: "#fff", borderRadius: "10px", padding: "1.5rem", maxWidth: "480px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", maxHeight: "80vh", overflowY: "auto" };

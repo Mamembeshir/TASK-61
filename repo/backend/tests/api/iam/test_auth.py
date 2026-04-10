@@ -33,8 +33,15 @@ ME_URL       = "/api/v1/auth/me/"
 STRONG_PW = "Test@pass1!"  # meets all strength requirements
 
 
+def _small_jpeg():
+    """Return a minimal valid JPEG SimpleUploadedFile."""
+    return SimpleUploadedFile(
+        "id.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 20, content_type="image/jpeg"
+    )
+
+
 def _reg_payload(tenant, **overrides):
-    """Minimal valid registration payload for tenant."""
+    """Minimal valid registration payload for tenant (multipart-ready)."""
     base = {
         "username": "newuser",
         "password": STRONG_PW,
@@ -42,6 +49,7 @@ def _reg_payload(tenant, **overrides):
         "legal_first_name": "Alice",
         "legal_last_name": "Smith",
         "employee_student_id": "EMP001",
+        "photo_id": _small_jpeg(),
     }
     base.update(overrides)
     return base
@@ -55,7 +63,7 @@ class TestRegister:
 
     def test_happy_path_returns_201_pending_review(self, api_client, tenant, assert_status):
         """Valid registration → 201, user status is PENDING_REVIEW."""
-        resp = api_client.post(REGISTER_URL, _reg_payload(tenant), format="json")
+        resp = api_client.post(REGISTER_URL, _reg_payload(tenant), format="multipart")
         assert_status(resp, 201)
         assert resp.data["status"] == "PENDING_REVIEW"
         assert resp.data["role"] == "STAFF"
@@ -69,7 +77,7 @@ class TestRegister:
             username=staff_user.username,
             employee_student_id="EMP_UNIQUE_1",
         )
-        resp = api_client.post(REGISTER_URL, payload, format="json")
+        resp = api_client.post(REGISTER_URL, payload, format="multipart")
         assert_status(resp, 409)
 
     def test_duplicate_username_different_tenant_returns_201(
@@ -82,7 +90,7 @@ class TestRegister:
             username=staff_user.username,
             employee_student_id="EMP_UNIQUE_2",
         )
-        resp = api_client.post(REGISTER_URL, payload, format="json")
+        resp = api_client.post(REGISTER_URL, payload, format="multipart")
         assert_status(resp, 201)
 
     def test_weak_password_missing_special_char_returns_422(
@@ -92,7 +100,7 @@ class TestRegister:
         resp = api_client.post(
             REGISTER_URL,
             _reg_payload(tenant, username="weakpw", password="NoSpecial1"),
-            format="json",
+            format="multipart",
         )
         assert_status(resp, 422)
 
@@ -100,7 +108,7 @@ class TestRegister:
         resp = api_client.post(
             REGISTER_URL,
             _reg_payload(tenant, username="shortpw", password="Ab1!"),
-            format="json",
+            format="multipart",
         )
         assert_status(resp, 422)
 
@@ -137,15 +145,14 @@ class TestRegister:
         """Two POSTs with the same Idempotency-Key → identical response, 1 user in DB."""
         from iam.models import User
 
-        payload = _reg_payload(tenant, username="idempuser")
         resp1 = api_client.post(
-            REGISTER_URL, payload, format="json",
+            REGISTER_URL, _reg_payload(tenant, username="idempuser"), format="multipart",
             HTTP_IDEMPOTENCY_KEY="idem-reg-001",
         )
         assert_status(resp1, 201)
 
         resp2 = api_client.post(
-            REGISTER_URL, payload, format="json",
+            REGISTER_URL, _reg_payload(tenant, username="idempuser"), format="multipart",
             HTTP_IDEMPOTENCY_KEY="idem-reg-001",
         )
         # Cached response — same status and same user id

@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, BookOpen, Plus, X, ChevronUp, ChevronDown } from "lucide-react";
 import { recipeApi, UNIT_LABELS, type RecipeDetail, type RecipeVersion } from "@/api/foodservice";
 import CurrencyInput from "@/components/CurrencyInput";
+import {
+  PageHeader, Button, Card, Field, AlertBanner, SkeletonCard,
+} from "@/components/ui";
+import { inputStyle, selectStyle, textareaStyle } from "@/styles/forms";
+import { colors, font, radius } from "@/styles/tokens";
 
 interface Ingredient {
   ingredient_name: string;
@@ -55,11 +61,10 @@ export default function RecipeVersionCreatePage() {
     ])
       .then(([rec, prefillVer]) => {
         setRecipe(rec);
-        // Prefill from specified version or fall back to active version
         const source: RecipeVersion | null = prefillVer ?? rec.active_version;
         if (source) {
           setServings(String(source.servings));
-          setEffFrom(TODAY); // always default to today for a new version
+          setEffFrom(TODAY);
           setIngredients(
             source.ingredients.map((i) => ({
               ingredient_name: i.ingredient_name,
@@ -75,7 +80,6 @@ export default function RecipeVersionCreatePage() {
       .finally(() => setLoading(false));
   }, [id, prefillId]);
 
-  // Ingredients helpers
   function addIngredient() {
     setIngredients((prev) => [...prev, { ingredient_name: "", quantity: "", unit: "oz", unit_cost: "" }]);
   }
@@ -86,7 +90,6 @@ export default function RecipeVersionCreatePage() {
     setIngredients((prev) => prev.map((ing, idx) => idx === i ? { ...ing, [field]: val } : ing));
   }
 
-  // Steps helpers
   function addStep() {
     setSteps((prev) => [...prev, { instruction: "" }]);
   }
@@ -135,154 +138,324 @@ export default function RecipeVersionCreatePage() {
     }
   }
 
-  if (loading) return <div style={{ padding: "1.5rem" }}>Loading…</div>;
-  if (error)   return <div style={{ padding: "1.5rem", color: "#842029" }}>{error}</div>;
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Loading version…" icon={<BookOpen size={22} />} />
+        <SkeletonCard />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="New Version" icon={<BookOpen size={22} />} />
+        <AlertBanner type="error" message={error} />
+      </div>
+    );
+  }
 
   const preview = perServingCost(ingredients, servings);
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif", maxWidth: "860px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate(`/kitchen/recipes/${id}`)} style={backBtn}>← Back</button>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>
-          New Version — {recipe?.name}
-        </h2>
-      </div>
+    <div>
+      <PageHeader
+        title="New Version"
+        subtitle={recipe ? recipe.name : undefined}
+        icon={<BookOpen size={22} />}
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/kitchen/recipes/${id}`)}
+            icon={<ArrowLeft size={14} />}
+          >
+            Back
+          </Button>
+        }
+      />
 
-      {saveError && <div style={errorBox}>{saveError}</div>}
+      {saveError && <AlertBanner type="error" message={saveError} onClose={() => setSaveError(null)} />}
 
       <form onSubmit={handleSubmit}>
-        {/* Metadata */}
-        <div style={section}>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <div style={{ flex: "0 0 160px" }}>
-              <label style={labelStyle}>Servings <span style={req}>*</span></label>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Version Details</SectionTitle>
+          <div className="hb-stack-sm" style={{ display: "grid", gridTemplateColumns: "160px 200px", gap: "1rem" }}>
+            <Field label="Servings" required>
               <input
-                type="number" min="0.01" step="0.01"
-                value={servings} onChange={(e) => setServings(e.target.value)}
-                style={input} required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={servings}
+                onChange={(e) => setServings(e.target.value)}
+                style={inputStyle}
+                required
               />
-            </div>
-            <div style={{ flex: "0 0 180px" }}>
-              <label style={labelStyle}>Effective From <span style={req}>*</span></label>
+            </Field>
+            <Field label="Effective From" required>
               <input
-                type="date" value={effFrom} onChange={(e) => setEffFrom(e.target.value)}
-                style={input} required
+                type="date"
+                value={effFrom}
+                onChange={(e) => setEffFrom(e.target.value)}
+                style={inputStyle}
+                required
               />
-            </div>
+            </Field>
           </div>
-        </div>
+        </Card>
 
         {/* Ingredients */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Ingredients</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid #dee2e6" }}>
-                <th style={th}>Ingredient</th>
-                <th style={{ ...th, width: "100px" }}>Qty</th>
-                <th style={{ ...th, width: "130px" }}>Unit</th>
-                <th style={{ ...th, width: "120px" }}>Unit Cost</th>
-                <th style={{ ...th, width: "100px", textAlign: "right" }}>Line Total</th>
-                <th style={{ ...th, width: "40px" }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ingredients.map((ing, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #dee2e6" }}>
-                  <td style={td}>
-                    <input
-                      value={ing.ingredient_name}
-                      onChange={(e) => updateIngredient(i, "ingredient_name", e.target.value)}
-                      style={{ ...input, marginBottom: 0 }} placeholder="Flour"
-                    />
-                  </td>
-                  <td style={td}>
-                    <input
-                      type="number" min="0.001" step="0.001"
-                      value={ing.quantity}
-                      onChange={(e) => updateIngredient(i, "quantity", e.target.value)}
-                      style={{ ...input, marginBottom: 0 }} placeholder="2"
-                    />
-                  </td>
-                  <td style={td}>
-                    <select
-                      value={ing.unit}
-                      onChange={(e) => updateIngredient(i, "unit", e.target.value)}
-                      style={{ ...input, marginBottom: 0 }}
-                    >
-                      {UNITS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
-                    </select>
-                  </td>
-                  <td style={td}>
-                    <CurrencyInput value={ing.unit_cost} onChange={(v) => updateIngredient(i, "unit_cost", v)} />
-                  </td>
-                  <td style={{ ...td, textAlign: "right", color: "#495057" }}>
-                    ${lineTotal(ing).toFixed(2)}
-                  </td>
-                  <td style={td}>
-                    {ingredients.length > 1 && (
-                      <button type="button" onClick={() => removeIngredient(i)} style={iconBtn}>×</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.75rem" }}>
-            <button type="button" onClick={addIngredient} style={outlineBtn}>+ Add Ingredient</button>
-            <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "#495057" }}>
-              Per-serving cost preview: <span style={{ color: "#0d6efd" }}>${preview.toFixed(2)}</span>
-            </span>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Ingredients</SectionTitle>
+          <div style={{
+            border: `1px solid ${colors.border}`,
+            borderRadius: radius.md,
+            overflow: "hidden",
+            marginBottom: "0.85rem",
+          }}>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(220px,1fr) 110px 140px 130px 110px 40px",
+              gap: "0.5rem",
+              padding: "10px 12px",
+              minWidth: 760,
+              background: colors.surfaceAlt,
+              borderBottom: `1px solid ${colors.border}`,
+              fontSize: font.size.xs,
+              fontWeight: font.weight.semibold,
+              color: colors.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: font.tracking.wider,
+            }}>
+              <span>Ingredient</span>
+              <span>Qty</span>
+              <span>Unit</span>
+              <span>Unit Cost</span>
+              <span style={{ textAlign: "right" }}>Line Total</span>
+              <span />
+            </div>
+            {ingredients.map((ing, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(220px,1fr) 110px 140px 130px 110px 40px",
+                  gap: "0.5rem",
+                  padding: "10px 12px",
+                  minWidth: 760,
+                  borderBottom: i < ingredients.length - 1 ? `1px solid ${colors.border}` : undefined,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  value={ing.ingredient_name}
+                  onChange={(e) => updateIngredient(i, "ingredient_name", e.target.value)}
+                  style={{ ...inputStyle, padding: "7px 11px" }}
+                  placeholder="Flour"
+                />
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={ing.quantity}
+                  onChange={(e) => updateIngredient(i, "quantity", e.target.value)}
+                  style={{ ...inputStyle, padding: "7px 11px" }}
+                  placeholder="2"
+                />
+                <select
+                  value={ing.unit}
+                  onChange={(e) => updateIngredient(i, "unit", e.target.value)}
+                  style={{ ...selectStyle, padding: "7px 11px", paddingRight: 32 }}
+                >
+                  {UNITS.map(([val, lbl]) => <option key={val} value={val}>{lbl}</option>)}
+                </select>
+                <CurrencyInput
+                  value={ing.unit_cost}
+                  onChange={(v) => updateIngredient(i, "unit_cost", v)}
+                />
+                <span style={{
+                  textAlign: "right",
+                  fontVariantNumeric: "tabular-nums",
+                  fontFamily: font.familyMono,
+                  fontSize: font.size.sm,
+                  color: colors.text,
+                  fontWeight: font.weight.semibold,
+                }}>
+                  ${lineTotal(ing).toFixed(2)}
+                </span>
+                {ingredients.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeIngredient(i)}
+                    title="Remove"
+                    style={iconBtnStyle}
+                  >
+                    <X size={14} />
+                  </button>
+                ) : <span />}
+              </div>
+            ))}
           </div>
-        </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+            <Button type="button" variant="outline" size="sm" onClick={addIngredient} icon={<Plus size={14} />}>
+              Add Ingredient
+            </Button>
+            <div style={{
+              padding: "0.5rem 0.9rem",
+              background: colors.primaryLight,
+              border: `1px solid ${colors.primaryMid}`,
+              borderRadius: radius.md,
+              fontSize: font.size.sm,
+              color: colors.textSecondary,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}>
+              <span>Per-serving cost preview:</span>
+              <strong style={{
+                color: colors.primary,
+                fontFamily: font.familyMono,
+                fontVariantNumeric: "tabular-nums",
+                fontWeight: font.weight.bold,
+              }}>
+                ${preview.toFixed(2)}
+              </strong>
+            </div>
+          </div>
+        </Card>
 
         {/* Steps */}
-        <div style={section}>
-          <h3 style={sectionTitle}>Steps</h3>
+        <Card style={{ marginBottom: "1.25rem" }}>
+          <SectionTitle>Steps</SectionTitle>
           {steps.map((s, i) => (
-            <div key={i} style={{ marginBottom: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px", paddingTop: "6px" }}>
-                <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} style={{ ...iconBtn, fontSize: "0.7rem" }}>▲</button>
-                <button type="button" onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1} style={{ ...iconBtn, fontSize: "0.7rem" }}>▼</button>
+            <div key={i} style={{
+              marginBottom: "0.85rem",
+              display: "flex",
+              gap: "0.6rem",
+              alignItems: "flex-start",
+            }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px", paddingTop: "22px" }}>
+                <button
+                  type="button"
+                  onClick={() => moveStep(i, -1)}
+                  disabled={i === 0}
+                  style={arrowBtnStyle}
+                  title="Move up"
+                >
+                  <ChevronUp size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveStep(i, 1)}
+                  disabled={i === steps.length - 1}
+                  style={arrowBtnStyle}
+                  title="Move down"
+                >
+                  <ChevronDown size={13} />
+                </button>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "0.8rem", color: "#6c757d", marginBottom: "4px", fontWeight: 500 }}>Step {i + 1}</div>
+                <div style={{
+                  fontSize: font.size.xs,
+                  color: colors.textMuted,
+                  marginBottom: "5px",
+                  fontWeight: font.weight.semibold,
+                  textTransform: "uppercase",
+                  letterSpacing: font.tracking.wider,
+                }}>
+                  Step {i + 1}
+                </div>
                 <textarea
                   value={s.instruction}
                   onChange={(e) => updateStep(i, e.target.value)}
                   maxLength={2000}
                   rows={3}
-                  style={{ ...input, resize: "vertical", width: "100%", boxSizing: "border-box", marginBottom: 0 }}
+                  style={{ ...textareaStyle, minHeight: 72 }}
                   placeholder="Describe this step…"
                 />
-                <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#6c757d" }}>{s.instruction.length}/2000</div>
+                <div style={{
+                  textAlign: "right",
+                  fontSize: font.size.xs,
+                  color: colors.textMuted,
+                  marginTop: "3px",
+                }}>
+                  {s.instruction.length}/2000
+                </div>
               </div>
               {steps.length > 1 && (
-                <button type="button" onClick={() => removeStep(i)} style={{ ...iconBtn, marginTop: "6px" }}>×</button>
+                <button
+                  type="button"
+                  onClick={() => removeStep(i)}
+                  style={{ ...iconBtnStyle, marginTop: "22px" }}
+                  title="Remove"
+                >
+                  <X size={14} />
+                </button>
               )}
             </div>
           ))}
-          <button type="button" onClick={addStep} style={outlineBtn}>+ Add Step</button>
-        </div>
+          <Button type="button" variant="outline" size="sm" onClick={addStep} icon={<Plus size={14} />}>
+            Add Step
+          </Button>
+        </Card>
 
-        <button type="submit" disabled={saving} style={primaryBtn}>
-          {saving ? "Saving…" : "Save as Draft"}
-        </button>
+        <div style={{ display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate(`/kitchen/recipes/${id}`)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={saving}>
+            Save as Draft
+          </Button>
+        </div>
       </form>
     </div>
   );
 }
 
-const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.95rem" };
-const outlineBtn: React.CSSProperties = { padding: "7px 14px", background: "#fff", color: "#0d6efd", border: "1px solid #0d6efd", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const backBtn: React.CSSProperties    = { padding: "6px 12px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem" };
-const iconBtn: React.CSSProperties    = { padding: "4px 8px", background: "#fff", color: "#6c757d", border: "1px solid #ced4da", borderRadius: "4px", cursor: "pointer", lineHeight: 1 };
-const errorBox: React.CSSProperties   = { background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" };
-const section: React.CSSProperties    = { marginBottom: "1.75rem", padding: "1.25rem", border: "1px solid #dee2e6", borderRadius: "8px" };
-const sectionTitle: React.CSSProperties = { margin: "0 0 1rem 0", fontSize: "1rem", fontWeight: 600, color: "#212529" };
-const labelStyle: React.CSSProperties = { display: "block", fontSize: "0.85rem", fontWeight: 500, color: "#495057", marginBottom: "4px" };
-const req: React.CSSProperties        = { color: "#dc3545" };
-const input: React.CSSProperties      = { display: "block", width: "100%", padding: "7px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem", boxSizing: "border-box", marginBottom: 0 };
-const th: React.CSSProperties         = { padding: "8px 10px", fontWeight: 600, fontSize: "0.78rem", color: "#495057", textTransform: "uppercase" as const, letterSpacing: "0.04em", textAlign: "left" as const };
-const td: React.CSSProperties         = { padding: "8px 10px", verticalAlign: "top" };
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 style={{
+      margin: "0 0 1rem 0",
+      fontSize: font.size.md,
+      fontWeight: font.weight.semibold,
+      color: colors.text,
+      letterSpacing: font.tracking.tight,
+    }}>
+      {children}
+    </h3>
+  );
+}
+
+const iconBtnStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: colors.surface,
+  color: colors.textMuted,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.sm,
+  cursor: "pointer",
+  padding: 0,
+};
+
+const arrowBtnStyle: React.CSSProperties = {
+  width: 24,
+  height: 20,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: colors.surfaceAlt,
+  color: colors.textSecondary,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.xs,
+  cursor: "pointer",
+  padding: 0,
+};

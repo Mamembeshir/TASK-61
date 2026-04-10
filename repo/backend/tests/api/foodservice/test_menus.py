@@ -19,6 +19,7 @@ from decimal import Decimal
 
 import pytest
 
+from iam.factories import TenantFactory, SiteFactory, AdminUserFactory
 from iam.models import UserSiteAssignment, User
 from foodservice.models import (
     Allergen, Dish, DishVersion, DishVersionAllergen,
@@ -500,3 +501,112 @@ class TestSiteActiveMenus:
         list_resp = admin_client.get(f"/api/v1/foodservice/sites/{site.pk}/active-menus/")
         assert_status(list_resp, 200)
         assert list_resp.json() == []
+
+
+# ---------------------------------------------------------------------------
+# 7. Cross-tenant isolation
+# ---------------------------------------------------------------------------
+
+class TestCrossTenantIsolation:
+    """
+    Explicitly asserts that tenant A cannot reference tenant B's resources
+    in menu operations. These tests guard against regressions that would
+    re-introduce tenant-isolation defects.
+    """
+
+    @pytest.fixture
+    def other_tenant(self):
+        return TenantFactory()
+
+    @pytest.fixture
+    def other_tenant_dish(self, other_tenant, milk):
+        """An ACTIVE DishVersion that belongs to a *different* tenant."""
+        other_admin = AdminUserFactory(tenant=other_tenant)
+        dish = Dish.objects.create(tenant=other_tenant, recipe=None, created_by=other_admin)
+        version = DishVersion.objects.create(
+            dish=dish,
+            version_number=1,
+            name="Foreign Dish",
+            effective_from=TODAY,
+            status=DishVersion.Status.DRAFT,
+            per_serving_cost=Decimal("4.00"),
+            created_by=other_admin,
+        )
+        DishVersionAllergen.objects.create(dish_version=version, allergen=milk)
+        version.activate()
+        return version
+
+    @pytest.fixture
+    def other_tenant_site(self, other_tenant):
+        """A Site that belongs to a *different* tenant."""
+        return SiteFactory(tenant=other_tenant)
+
+    def test_foreign_tenant_dish_version_in_menu_group_returns_404(
+        self, admin_client, other_tenant_dish, assert_status
+    ):
+        """
+        Attempting to create a menu group referencing a dish_version that
+        belongs to another tenant must return 404 (not 201 or 500).
+        """
+        payload = {
+            "name": "Cross-tenant menu",
+            "groups": [
+                {
+                    "name": "Stolen Items",
+                    "sort_order": 0,
+                    "items": [{"dish_version_id": str(other_tenant_dish.pk), "sort_order": 0}],
+                }
+            ],
+        }
+        resp = admin_client.post(MENUS_URL, data=payload, format="json")
+        assert_status(resp, 404)
+
+    def test_foreign_tenant_dish_in_new_version_returns_404(
+        self, admin_client, active_dish, other_tenant_dish, assert_status
+    ):
+        """
+        Same isolation check when adding a new version to an existing menu.
+        """
+        # Create a valid menu first
+        menu_resp = _create_menu(admin_client, active_dish)
+        assert menu_resp.status_code == 201
+        menu_id = menu_resp.json()["id"]
+
+        # Try to create a version referencing a foreign dish
+        resp = admin_client.post(
+            f"{MENUS_URL}{menu_id}/versions/",
+            data={
+                "description": "Injection attempt",
+                "groups": [
+                    {
+                        "name": "Mains",
+                        "items": [{"dish_version_id": str(other_tenant_dish.pk)}],
+                    }
+                ],
+            },
+            format="json",
+        )
+        assert_status(resp, 404)
+
+    def test_foreign_tenant_site_in_publish_returns_422(
+        self, admin_client, active_dish, other_tenant_site, assert_status
+    ):
+        """
+        Attempting to publish a menu to a site owned by another tenant
+        must be rejected with 422 (Unknown site IDs), not silently succeed.
+        """
+        menu_resp = _create_menu(admin_client, active_dish)
+        assert menu_resp.status_code == 201
+        menu_id = menu_resp.json()["id"]
+        version = Menu.objects.get(pk=menu_id).versions.first()
+
+        pub_resp = admin_client.post(
+            f"{MENUS_URL}{menu_id}/versions/{version.pk}/publish/",
+            data={"site_ids": [str(other_tenant_site.pk)]},
+            format="json",
+        )
+        assert_status(pub_resp, 422)
+        # Confirm no release was created for the foreign site
+        assert not MenuSiteRelease.objects.filter(
+            menu_version=version, site=other_tenant_site
+        ).exists()

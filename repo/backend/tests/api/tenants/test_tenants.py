@@ -10,13 +10,13 @@ API tests for:
 """
 import pytest
 from rest_framework.test import APIClient
-from rest_framework.authtoken.models import Token
 
 from iam.factories import (
     TenantFactory, SiteFactory, UserFactory,
     AdminUserFactory, UserSiteAssignmentFactory,
 )
 from iam.models import User
+from tests.signed_client import make_signed_client
 
 
 pytestmark = [pytest.mark.api, pytest.mark.django_db]
@@ -26,11 +26,7 @@ pytestmark = [pytest.mark.api, pytest.mark.django_db]
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_client(user):
-    token, _ = Token.objects.get_or_create(user=user)
-    client = APIClient()
-    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
-    return client
+make_client = make_signed_client
 
 
 SITES_URL = "/api/v1/tenants/sites/"
@@ -61,7 +57,7 @@ class TestAdminSiteList:
         admin = AdminUserFactory(tenant=tenant)
         resp = make_client(admin).get(SITES_URL)
         assert resp.status_code == 200
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert {"Alpha", "Beta", "Gamma"} <= names
 
     def test_admin_does_not_see_inactive_sites(self):
@@ -70,7 +66,7 @@ class TestAdminSiteList:
         SiteFactory(tenant=tenant, name="Inactive Site", is_active=False)
         admin = AdminUserFactory(tenant=tenant)
         resp = make_client(admin).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Active Site" in names
         assert "Inactive Site" not in names
 
@@ -81,7 +77,7 @@ class TestAdminSiteList:
         SiteFactory(tenant=tenant_b, name="Tenant B Site")
         admin = AdminUserFactory(tenant=tenant_a)
         resp = make_client(admin).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Tenant A Site" in names
         assert "Tenant B Site" not in names
 
@@ -90,15 +86,15 @@ class TestAdminSiteList:
         admin = AdminUserFactory(tenant=tenant)
         resp = make_client(admin).get(SITES_URL)
         assert resp.status_code == 200
-        assert resp.data == []
+        assert resp.data["results"] == []
 
     def test_response_shape_has_id_name_timezone(self):
         tenant = TenantFactory()
         SiteFactory(tenant=tenant, name="Shape Site")
         admin = AdminUserFactory(tenant=tenant)
         resp = make_client(admin).get(SITES_URL)
-        assert len(resp.data) >= 1
-        site = resp.data[0]
+        assert len(resp.data["results"]) >= 1
+        site = resp.data["results"][0]
         assert "id" in site
         assert "name" in site
         assert "timezone" in site
@@ -118,7 +114,7 @@ class TestStaffSiteList:
         UserSiteAssignmentFactory(user=staff, site=assigned_site)
 
         resp = make_client(staff).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Assigned" in names
         assert "Not Assigned" not in names
 
@@ -128,7 +124,7 @@ class TestStaffSiteList:
         staff = UserFactory(tenant=tenant, role=User.Role.STAFF)
         resp = make_client(staff).get(SITES_URL)
         assert resp.status_code == 200
-        assert resp.data == []
+        assert resp.data["results"] == []
 
     def test_staff_with_multiple_assignments(self):
         tenant = TenantFactory()
@@ -140,7 +136,7 @@ class TestStaffSiteList:
         UserSiteAssignmentFactory(user=staff, site=s2)
 
         resp = make_client(staff).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Site 1" in names
         assert "Site 2" in names
         assert "Site 3" not in names
@@ -152,7 +148,7 @@ class TestStaffSiteList:
         UserSiteAssignmentFactory(user=staff, site=inactive_site)
 
         resp = make_client(staff).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Inactive" not in names
 
 
@@ -170,7 +166,7 @@ class TestCourierSiteList:
         UserSiteAssignmentFactory(user=courier, site=assigned_site)
 
         resp = make_client(courier).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "Courier Site" in names
         assert "Other Site" not in names
 
@@ -181,7 +177,7 @@ class TestCourierSiteList:
 
         resp = make_client(courier).get(SITES_URL)
         assert resp.status_code == 200
-        assert resp.data == []
+        assert resp.data["results"] == []
 
 
 # ===========================================================================
@@ -204,6 +200,6 @@ class TestCrossTenantIsolation:
         UserSiteAssignmentFactory(user=staff_a, site=site_a)
 
         resp = make_client(staff_a).get(SITES_URL)
-        names = {s["name"] for s in resp.data}
+        names = {s["name"] for s in resp.data["results"]}
         assert "A-Site" in names
         assert "B-Site" not in names

@@ -6,7 +6,10 @@ RequestLoggingMiddleware — logs method / path / status / duration.
 AccountStatusMiddleware  — gates write operations by account status.
 IdempotencyMiddleware    — de-duplicates POST requests by Idempotency-Key.
 RateLimitMiddleware      — 100 req/min per authenticated user via Redis.
+SignedRequestMiddleware  — validates timestamp/nonce/HMAC on Token-auth requests.
 """
+import hashlib
+import hmac as hmac_lib
 import json
 import logging
 import threading
@@ -128,12 +131,20 @@ class IdempotencyMiddleware:
             return self.get_response(request)
 
         # ------------------------------------------------------------------
+        # Scope key by endpoint + actor so keys cannot cross user/path boundaries
+        # ------------------------------------------------------------------
+        endpoint = request.path
+        actor_id = str(request.user.pk) if getattr(request, "user", None) and request.user.is_authenticated else "anonymous"
+
+        # ------------------------------------------------------------------
         # Cache hit?
         # ------------------------------------------------------------------
         cutoff = timezone.now() - timedelta(hours=24)
         try:
             from core.models import IdempotencyRecord
-            record = IdempotencyRecord.objects.get(key=key, created_at__gte=cutoff)
+            record = IdempotencyRecord.objects.get(
+                key=key, endpoint=endpoint, actor_id=actor_id, created_at__gte=cutoff
+            )
             response = JsonResponse(record.response_body, status=record.response_status, safe=False)
             response["X-Idempotency-Replayed"] = "true"
             return response
@@ -154,7 +165,8 @@ class IdempotencyMiddleware:
                     from core.models import IdempotencyRecord
                     IdempotencyRecord.objects.create(
                         key=key,
-                        endpoint=request.path,
+                        endpoint=endpoint,
+                        actor_id=actor_id,
                         response_status=response.status_code,
                         response_body=body,
                     )
@@ -300,3 +312,105 @@ class RateLimitMiddleware:
             pass
 
         return self.get_response(request)
+
+
+class SignedRequestMiddleware:
+    """
+    Enforces per-request signed-request verification for Token-authenticated API calls.
+
+    For any request carrying ``Authorization: Token <key>`` on a /api/ path,
+    three additional headers are required:
+
+        X-Request-Timestamp : Unix epoch seconds (integer string)
+        X-Request-Nonce     : Random string (UUID recommended), max 128 chars
+        X-Request-Signature : Hex-encoded HMAC-SHA256 of the canonical message
+
+    Canonical message (UTF-8, newline-joined):
+        {METHOD}\\n{path}\\n{timestamp}\\n{nonce}
+
+    The HMAC secret is the DRF token key itself — a per-user secret already
+    transmitted over TLS — so no out-of-band shared secret is needed.
+
+    Validation rules:
+        1. Timestamp must be within ±TIMESTAMP_TOLERANCE_S of server time.
+        2. Nonce must not have been seen within the replay window (cache).
+        3. HMAC signature must verify.
+
+    Session-authenticated requests (no Authorization header) are exempt —
+    they are protected by Django's CSRF middleware.
+    Requests to _AUTH_PREFIXES are always exempt (login has no token yet).
+    """
+
+    TIMESTAMP_TOLERANCE_S = 300   # ±5 minutes
+    NONCE_CACHE_TTL_S     = 660   # must exceed 2 × tolerance
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if self._requires_signature(request):
+            error = self._verify(request)
+            if error:
+                return error
+        return self.get_response(request)
+
+    def _requires_signature(self, request) -> bool:
+        if not request.path.startswith("/api/"):
+            return False
+        if _is_auth_path(request.path):
+            return False
+        return request.META.get("HTTP_AUTHORIZATION", "").startswith("Token ")
+
+    def _verify(self, request):
+        token_key = request.META["HTTP_AUTHORIZATION"][6:].strip()
+        ts_header = request.META.get("HTTP_X_REQUEST_TIMESTAMP", "").strip()
+        nonce     = request.META.get("HTTP_X_REQUEST_NONCE", "").strip()
+        signature = request.META.get("HTTP_X_REQUEST_SIGNATURE", "").strip()
+
+        if not (ts_header and nonce and signature):
+            return self._err(
+                "signed_request_required",
+                "X-Request-Timestamp, X-Request-Nonce, and X-Request-Signature are required.",
+            )
+
+        # 1. Timestamp freshness
+        try:
+            ts = int(ts_header)
+        except ValueError:
+            return self._err("invalid_timestamp", "X-Request-Timestamp must be a Unix epoch integer.")
+
+        skew = abs(time.time() - ts)
+        if skew > self.TIMESTAMP_TOLERANCE_S:
+            return self._err(
+                "timestamp_expired",
+                f"Request timestamp rejected (skew={skew:.0f}s, max={self.TIMESTAMP_TOLERANCE_S}s).",
+            )
+
+        # 2. Nonce replay check
+        if len(nonce) > 128:
+            return self._err("invalid_nonce", "X-Request-Nonce must not exceed 128 characters.")
+
+        cache_key = f"req_nonce:{token_key[:16]}:{nonce}"
+        try:
+            from django.core.cache import cache
+            if cache.get(cache_key) is not None:
+                return self._err("nonce_replayed", "Request nonce has already been used.")
+            cache.set(cache_key, 1, timeout=self.NONCE_CACHE_TTL_S)
+        except Exception:
+            pass  # cache unavailable — fail-open to avoid hard-locking users
+
+        # 3. HMAC verification
+        message = f"{request.method}\n{request.path}\n{ts_header}\n{nonce}".encode()
+        expected = hmac_lib.new(token_key.encode(), message, hashlib.sha256).hexdigest()
+
+        if not hmac_lib.compare_digest(expected, signature.lower()):
+            return self._err("invalid_signature", "Request signature verification failed.")
+
+        return None
+
+    @staticmethod
+    def _err(code: str, message: str):
+        return JsonResponse(
+            {"error": {"code": code, "message": message, "detail": None}},
+            status=400,
+        )

@@ -4,12 +4,12 @@ import StatusBadge from "../StatusBadge";
 
 describe("StatusBadge", () => {
   it.each([
-    ["DRAFT", "Draft", "#e2e3e5", "#41464b"],
-    ["ACTIVE", "Active", "#d1e7dd", "#0f5132"],
-    ["SUPERSEDED", "Superseded", "#fff3cd", "#664d03"],
-    ["ARCHIVED", "Archived", "#f8d7da", "#842029"],
-    ["PUBLISHED", "Published", "#cfe2ff", "#084298"],
-    ["UNPUBLISHED", "Unpublished", "#e2e3e5", "#41464b"],
+    ["DRAFT",      "Draft",      "#F1F5F9", "#475569"],
+    ["ACTIVE",     "Active",     "#D1FAE5", "#065F46"],
+    ["SUPERSEDED", "Superseded", "#FEF3C7", "#92400E"],
+    ["ARCHIVED",   "Archived",   "#FEE2E2", "#991B1B"],
+    ["PUBLISHED",  "Published",  "#DBEAFE", "#1E40AF"],
+    ["UNPUBLISHED","Unpublished","#E2E8F0", "#334155"],
   ] as const)(
     "renders %s with correct label and colours",
     (status, label, bg, color) => {
@@ -29,6 +29,6 @@ describe("StatusBadge", () => {
     render(<StatusBadge status="ACTIVE" />);
     const badge = screen.getByText("Active");
     expect(badge.tagName).toBe("SPAN");
-    expect(badge).toHaveStyle({ display: "inline-block" });
+    expect(badge).toHaveStyle({ display: "inline-flex" });
   });
 });

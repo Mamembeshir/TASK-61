@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { BookOpen, Plus } from "lucide-react";
 import { recipeApi, type RecipeListItem } from "@/api/foodservice";
 import SearchInput from "@/components/SearchInput";
 import StatusBadge from "@/components/StatusBadge";
+import {
+  PageHeader, Button, Card, Table, Tr, Td, EmptyState,
+  SkeletonTable, AlertBanner,
+} from "@/components/ui";
+import { colors, font } from "@/styles/tokens";
 
 export default function RecipesPage() {
   const navigate = useNavigate();
@@ -27,65 +33,96 @@ export default function RecipesPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-        <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 700 }}>Recipes</h2>
-        <button onClick={() => navigate("/kitchen/recipes/new")} style={primaryBtn}>
-          + New Recipe
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Recipes"
+        subtitle={loading
+          ? "Loading recipes…"
+          : `${recipes.length} recipe${recipes.length === 1 ? "" : "s"} in your library`}
+        icon={<BookOpen size={22} />}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => navigate("/kitchen/recipes/new")}
+            icon={<Plus size={16} />}
+          >
+            New Recipe
+          </Button>
+        }
+      />
 
-      <div style={{ marginBottom: "1rem" }}>
-        <SearchInput value={search} onChange={(v) => setSearch(v)} placeholder="Search recipes…" />
-      </div>
+      {/* Filters */}
+      <Card padding="1rem 1.15rem" style={{ marginBottom: "1.15rem" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}>
+          <div style={{ flex: "1 1 260px", minWidth: 240 }}>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search recipes…" />
+          </div>
+          {search && (
+            <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+              Clear
+            </Button>
+          )}
+        </div>
+      </Card>
 
-      {error && <div style={errorBox}>{error}</div>}
+      {error && <AlertBanner type="error" message={error} onClose={() => setError(null)} />}
 
       {loading ? (
-        <p style={{ color: "#6c757d" }}>Loading…</p>
+        <SkeletonTable rows={6} cols={5} />
+      ) : recipes.length === 0 ? (
+        <Card padding="0">
+          <EmptyState
+            icon="📖"
+            title="No recipes found"
+            description={search
+              ? "Try a different search term, or create a new recipe."
+              : "Build your first recipe to start tracking ingredient specs and costs."}
+            action={
+              <Button variant="primary" onClick={() => navigate("/kitchen/recipes/new")} icon={<Plus size={16} />}>
+                New Recipe
+              </Button>
+            }
+          />
+        </Card>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #dee2e6", textAlign: "left" }}>
-              <th style={th}>Name</th>
-              <th style={th}>Active Ver.</th>
-              <th style={th}>Effective From</th>
-              <th style={th}>Per-Serving Cost</th>
-              <th style={th}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recipes.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: "1.5rem", textAlign: "center", color: "#6c757d" }}>No recipes found.</td></tr>
-            ) : recipes.map((r) => (
-              <tr
-                key={r.id}
-                onClick={() => navigate(`/kitchen/recipes/${r.id}`)}
-                style={{ borderBottom: "1px solid #dee2e6", cursor: "pointer" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f8f9fa")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-              >
-                <td style={{ ...td, fontWeight: 500 }}>{r.name}</td>
-                <td style={td}>{r.active_version_number ?? "—"}</td>
-                <td style={td}>{r.effective_from ?? "—"}</td>
-                <td style={td}>
-                  {r.per_serving_cost ? `$${parseFloat(r.per_serving_cost).toFixed(2)}` : "—"}
-                </td>
-                <td style={td}>
-                  {r.active_version_number
-                    ? <StatusBadge status="ACTIVE" />
-                    : <StatusBadge status="DRAFT" />}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table columns={["Name", "Active Ver.", "Effective From", "Per-Serving Cost", "Status"]}>
+          {recipes.map((r) => (
+            <Tr key={r.id} onClick={() => navigate(`/kitchen/recipes/${r.id}`)}>
+              <Td style={{ fontWeight: font.weight.semibold, color: colors.text }}>
+                {r.name}
+              </Td>
+              <Td style={{
+                color: colors.textSecondary,
+                fontVariantNumeric: "tabular-nums",
+                textAlign: "center",
+              }}>
+                {r.active_version_number ?? "—"}
+              </Td>
+              <Td style={{ color: colors.textMuted, fontSize: font.size.sm, whiteSpace: "nowrap" }}>
+                {r.effective_from ?? "—"}
+              </Td>
+              <Td style={{
+                color: colors.text,
+                fontVariantNumeric: "tabular-nums",
+                fontFamily: font.familyMono,
+                fontSize: font.size.sm,
+              }}>
+                {r.per_serving_cost ? `$${parseFloat(r.per_serving_cost).toFixed(2)}` : "—"}
+              </Td>
+              <Td>
+                {r.active_version_number
+                  ? <StatusBadge status="ACTIVE" />
+                  : <StatusBadge status="DRAFT" />}
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
     </div>
   );
 }
-
-const primaryBtn: React.CSSProperties = { padding: "8px 16px", background: "#0d6efd", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: 600 };
-const errorBox: React.CSSProperties   = { background: "#f8d7da", color: "#842029", padding: "10px 14px", borderRadius: "6px", marginBottom: "1rem" };
-const th: React.CSSProperties = { padding: "10px 12px", fontWeight: 600, fontSize: "0.82rem", color: "#495057", textTransform: "uppercase", letterSpacing: "0.04em" };
-const td: React.CSSProperties = { padding: "10px 12px", verticalAlign: "middle" };
