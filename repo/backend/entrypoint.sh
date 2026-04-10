@@ -31,9 +31,15 @@ python manage.py migrate --noinput
 echo "Collecting static files…"
 python manage.py collectstatic --noinput --clear
 
+# Always seed the allergen reference table (idempotent — safe to re-run)
+echo "Seeding allergen reference data…"
+python manage.py seed_allergens
+
 if [ "${DJANGO_DEBUG:-false}" = "true" ]; then
   echo "Seeding dev data…"
   python manage.py seed_dev_data
+  echo "Seeding Coastal University demo data…"
+  python manage.py seed_demo_data
 fi
 
 echo "Starting Django…"

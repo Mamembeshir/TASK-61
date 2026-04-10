@@ -88,3 +88,24 @@ class IdempotencyRecord(models.Model):
 
     class Meta:
         db_table = "core_idempotency_record"
+
+
+class RequestLog(models.Model):
+    """
+    Per-request log written by RequestLoggingMiddleware.
+    Used by the analytics app to compute API health metrics (p95 latency, error rate).
+    """
+    id               = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    method           = models.CharField(max_length=10)
+    path             = models.CharField(max_length=500)
+    status_code      = models.SmallIntegerField()
+    response_time_ms = models.IntegerField()
+    user_id          = models.CharField(max_length=100, blank=True, default="anonymous")
+    timestamp        = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "core_request_log"
+        indexes = [
+            models.Index(fields=["timestamp"]),
+            models.Index(fields=["status_code", "timestamp"]),
+        ]

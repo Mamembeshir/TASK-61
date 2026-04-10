@@ -5,9 +5,11 @@ TenantMiddleware         — attaches tenant_id to every request.
 RequestLoggingMiddleware — logs method / path / status / duration.
 AccountStatusMiddleware  — gates write operations by account status.
 IdempotencyMiddleware    — de-duplicates POST requests by Idempotency-Key.
+RateLimitMiddleware      — 100 req/min per authenticated user via Redis.
 """
 import json
 import logging
+import threading
 import time
 from datetime import timedelta
 
@@ -207,4 +209,94 @@ class RequestLoggingMiddleware:
             duration_ms,
             user_id,
         )
+
+        def _write_log():
+            try:
+                from core.models import RequestLog
+                from django.utils import timezone as tz
+                RequestLog.objects.create(
+                    method=request.method,
+                    path=request.path[:500],
+                    status_code=response.status_code,
+                    response_time_ms=duration_ms,
+                    user_id=user_id,
+                    timestamp=tz.now(),
+                )
+            except Exception:
+                pass
+
+        threading.Thread(target=_write_log, daemon=True).start()
         return response
+
+
+class RateLimitMiddleware:
+    """
+    Enforces a per-user rate limit of 100 requests per minute for /api/ paths.
+
+    Key scheme: ratelimit:{user_id}:{minute_window}
+    where minute_window = int(time.time() // 60).
+
+    Falls back gracefully (allows the request) if Redis is unavailable.
+    Unauthenticated requests are not rate-limited.
+    """
+
+    _LIMIT = 100
+    _WINDOW = 60  # seconds
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self._redis = None
+        self._redis_init_attempted = False
+
+    def _get_redis(self):
+        """Lazily initialise a Redis client from CELERY_BROKER_URL."""
+        if self._redis_init_attempted:
+            return self._redis
+        self._redis_init_attempted = True
+        try:
+            import redis as redis_lib
+            from django.conf import settings
+            url = getattr(settings, "CELERY_BROKER_URL", "redis://localhost:6379/0")
+            self._redis = redis_lib.Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
+        except Exception:
+            self._redis = None
+        return self._redis
+
+    def __call__(self, request):
+        if not request.path.startswith("/api/"):
+            return self.get_response(request)
+
+        user = _resolve_user(request)
+        if not (user and user.is_authenticated):
+            return self.get_response(request)
+
+        try:
+            r = self._get_redis()
+            if r is None:
+                return self.get_response(request)
+
+            minute_window = int(time.time() // self._WINDOW)
+            key = f"ratelimit:{user.pk}:{minute_window}"
+
+            pipe = r.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, self._WINDOW + 5)  # slight buffer to avoid race on expiry
+            count, _ = pipe.execute()
+
+            if count > self._LIMIT:
+                return JsonResponse(
+                    {
+                        "error": {
+                            "code": "rate_limited",
+                            "message": "Rate limit exceeded. Maximum 100 requests per minute.",
+                            "detail": None,
+                        }
+                    },
+                    status=429,
+                    headers={"Retry-After": str(self._WINDOW)},
+                )
+        except Exception:
+            # Redis unavailable or any error — allow the request through
+            pass
+
+        return self.get_response(request)

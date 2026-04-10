@@ -7,7 +7,8 @@ function toCurrentUser(data: any): CurrentUser {
     username: data.username,
     role: data.role,
     status: data.status,
-    tenantId: data.tenant_slug ?? null,   // API returns tenant_slug
+    tenantId: data.tenant_slug ?? null,
+    legalFirstName: data.legal_first_name ?? null,
   };
 }
 

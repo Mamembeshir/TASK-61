@@ -731,6 +731,11 @@ class MenuVersionPublishView(APIView):
         site_ids = ser.validated_data["site_ids"]
         version.publish(request.user, site_ids)
         _menu_log(request, AuditLog.Action.PUBLISH, menu, extra={"version_number": version.version_number})
+        try:
+            from integrations.webhook_utils import dispatch_webhook
+            dispatch_webhook("menu.published", {"menu_id": str(menu.pk), "version_id": str(version.pk), "site_ids": [str(s) for s in site_ids]}, request.user.tenant)
+        except Exception:
+            pass
         v = MenuVersion.objects.prefetch_related(
             "groups__items__dish_version",
             "site_releases",
@@ -750,6 +755,11 @@ class MenuVersionUnpublishView(APIView):
         version = get_object_or_404(MenuVersion, pk=vid, menu=menu)
         version.unpublish()
         _menu_log(request, AuditLog.Action.UPDATE, menu, extra={"version_number": version.version_number, "action": "unpublish"})
+        try:
+            from integrations.webhook_utils import dispatch_webhook
+            dispatch_webhook("menu.unpublished", {"menu_id": str(menu.pk), "version_id": str(version.pk)}, request.user.tenant)
+        except Exception:
+            pass
         v = MenuVersion.objects.prefetch_related(
             "groups__items__dish_version",
             "site_releases",

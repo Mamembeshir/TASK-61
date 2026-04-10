@@ -155,6 +155,12 @@ class TransitionView(APIView):
             )
 
         _audit(action=AuditLog.Action.UPDATE, user=target, actor=request.user, request=request)
+        if new_status == User.AccountStatus.ACTIVE:
+            try:
+                from integrations.webhook_utils import dispatch_webhook
+                dispatch_webhook("user.activated", {"user_id": str(target.pk), "username": target.username, "role": target.role}, target.tenant)
+            except Exception:
+                pass
         return Response(AdminUserDetailSerializer(
             User.objects.prefetch_related("site_assignments__site", "status_history")
                 .select_related("profile", "tenant")

@@ -30,7 +30,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # No host-port binding — only reachable from other containers
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -51,7 +52,7 @@ services:
       DJANGO_SETTINGS_MODULE: harborops.settings
       DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost 127.0.0.1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost 127.0.0.1 django}
       DB_NAME: ${DB_NAME:-harborops}
       DB_USER: ${DB_USER:-harborops}
       DB_PASSWORD: ${DB_PASSWORD:-harborops}

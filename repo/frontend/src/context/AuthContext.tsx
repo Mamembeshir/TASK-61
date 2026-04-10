@@ -7,12 +7,13 @@ export interface CurrentUser {
   role: "ADMIN" | "STAFF" | "COURIER";
   status: "PENDING_REVIEW" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   tenantId: string | null;
+  legalFirstName: string | null;
 }
 
 interface AuthContextValue {
   currentUser: CurrentUser | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
 }
 
@@ -31,9 +32,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string): Promise<CurrentUser> => {
     const user = await authApi.login(username, password);
     setCurrentUser(user);
+    return user;
   }, []);
 
   const logout = useCallback(async () => {

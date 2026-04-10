@@ -198,6 +198,11 @@ class AssetListCreateView(APIView):
             )
             .get(pk=asset.pk)
         )
+        try:
+            from integrations.webhook_utils import dispatch_webhook
+            dispatch_webhook("asset.created", {"id": str(asset.pk), "code": asset.asset_code, "name": asset.name}, request.user.tenant)
+        except Exception:
+            pass
         return Response(AssetDetailSerializer(asset).data, status=status.HTTP_201_CREATED)
 
 
@@ -255,6 +260,11 @@ class AssetDetailUpdateDeleteView(APIView):
             )
             .get(pk=asset.pk)
         )
+        try:
+            from integrations.webhook_utils import dispatch_webhook
+            dispatch_webhook("asset.updated", {"id": str(asset.pk), "code": asset.asset_code, "name": asset.name}, request.user.tenant)
+        except Exception:
+            pass
         return Response(AssetDetailSerializer(asset).data)
 
     def delete(self, request, pk):
@@ -616,6 +626,11 @@ class AssetImportConfirmView(APIView):
             )
 
         result = confirm_import(job, decisions, request.user)
+        try:
+            from integrations.webhook_utils import dispatch_webhook
+            dispatch_webhook("asset.imported", {"job_id": str(job.pk), "created": result.get("created", 0), "updated": result.get("updated", 0)}, request.user.tenant)
+        except Exception:
+            pass
         return Response({**result, "import_id": str(job.pk)})
 
 

@@ -346,3 +346,22 @@ Record of all ambiguities, unclear business rules, and boundary conditions ident
   - Throughput: requests per minute
   - Top 5 slowest endpoints in the last hour
   These are displayed in the analytics dashboard and used to trigger API health alerts.
+---
+
+## 11. Implementation Clarifications (added 2026-04-10)
+
+### 11.1 MySQL vs. PostgreSQL partial unique indexes
+
+* **Question:** The `UniqueConstraint` with `condition=Q(status="ACTIVE")` on `RecipeVersion` and `DishVersion` — is it enforced at the DB level?
+* **Discovery:** MySQL 8.0 does not support partial unique indexes. The constraint definition is accepted by Django but silently not enforced by MySQL.
+* **Solution:** The one-active-version invariant is enforced at the application layer via `SELECT FOR UPDATE` inside `activate()`. Tests verify the application-layer enforcement, not a DB-level IntegrityError.
+
+### 11.2 Health check endpoint enhancement
+
+* **Question:** Should the health check report individual subsystem status?
+* **Solution:** `GET /api/v1/core/health/` now returns `{status, timestamp, database, redis}`. Returns 200 if all critical systems (database) are up, 503 if database is down. Redis failure is reported but does not change the HTTP status code (fail-open for availability).
+
+### 11.3 Demo data seed command
+
+* **Question:** What demo data should be available for development/staging?
+* **Solution:** `python manage.py seed_demo_data` creates a complete "Coastal University" dataset: 1 tenant, 3 sites, 5 users (1 admin, 2 staff, 2 couriers), 10 assets, 3 recipes, 5 dishes, 1 published menu, 1 scheduled meeting, 2 alerts, 1 webhook endpoint.

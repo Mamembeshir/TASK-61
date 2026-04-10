@@ -12,6 +12,7 @@ urlpatterns = [
     path("asset-classifications/", include("assets.classification_urls")),
     path("foodservice/",  include("foodservice.urls")),
     path("meetings/",     include("meetings.urls")),
+    path("courier/",      include("meetings.courier_urls")),
     path("analytics/",    include("analytics.urls")),
     path("integrations/", include("integrations.urls")),
     path("core/",         include("core.urls")),

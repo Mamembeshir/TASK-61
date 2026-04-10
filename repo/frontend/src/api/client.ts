@@ -36,18 +36,52 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Normalise error shape — re-throw with the server's error.message when available
+// Normalise error shape + global status handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    const status = error.response?.status;
+
+    // 401 — session expired, redirect to login
+    if (status === 401) {
+      sessionStorage.removeItem("auth_token");
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
+    }
+
+    // 429 — rate limited, surface Retry-After in message
+    if (status === 429) {
+      const retryAfter = error.response?.headers?.["retry-after"];
+      const msg = retryAfter
+        ? `Too many requests. Please wait ${retryAfter} seconds.`
+        : "Too many requests. Please wait a moment.";
+      const enhanced = new Error(msg);
+      (enhanced as any).status = 429;
+      (enhanced as any).response = error.response;
+      return Promise.reject(enhanced);
+    }
+
+    // 500 — server error
+    if (status >= 500) {
+      const enhanced = new Error("Something went wrong. Please try again.");
+      (enhanced as any).status = status;
+      (enhanced as any).response = error.response;
+      return Promise.reject(enhanced);
+    }
+
+    // Other structured errors
     const serverError = error.response?.data?.error;
     if (serverError) {
       const enhanced = new Error(serverError.message ?? "An error occurred");
-      (enhanced as any).code = serverError.code;
-      (enhanced as any).detail = serverError.detail;
-      (enhanced as any).status = error.response.status;
+      (enhanced as any).code    = serverError.code;
+      (enhanced as any).detail  = serverError.detail;
+      (enhanced as any).status  = status;
+      (enhanced as any).response = error.response;
       return Promise.reject(enhanced);
     }
+
     return Promise.reject(error);
   }
 );

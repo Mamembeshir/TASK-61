@@ -1,5 +1,7 @@
 from django.urls import path
+from analytics.views import DashboardView, ExportView
 
 urlpatterns = [
-    # TODO: register viewsets here
+    path("dashboard/", DashboardView.as_view(), name="analytics-dashboard"),
+    path("export/",    ExportView.as_view(),    name="analytics-export"),
 ]

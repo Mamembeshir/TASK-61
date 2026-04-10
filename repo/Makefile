@@ -1,9 +1,16 @@
-.PHONY: setup migrate seed run-backend run-frontend test \
-        build-frontend shell celery logs up down
+.PHONY: setup migrate seed seed-allergens seed-demo seed-demo-flush \
+        run-backend run-frontend test test-unit test-api test-fast \
+        coverage build-frontend shell celery logs up down \
+        lint typecheck clean
 
 DC      := docker-compose
 DJANGO  := $(DC) exec django
 PYTEST  := $(DC) exec django pytest
+
+# ----------------------------------------------------------------------------
+# Local (no Docker) helpers — use MANAGE for direct python manage.py calls
+# ----------------------------------------------------------------------------
+MANAGE  := python backend/manage.py
 
 # ---------------------------------------------------------------------------
 # up — build images and start all services
@@ -44,11 +51,18 @@ migrate:
 	$(DC) run --rm django python manage.py migrate --noinput
 
 # ---------------------------------------------------------------------------
-# seed — load fixture data
+# seed — seed allergens + Coastal University demo data
 # ---------------------------------------------------------------------------
-seed:
-	$(DC) run --rm django python manage.py loaddata core/fixtures/seed.json \
-		|| echo "No seed fixture found — skipping."
+seed: seed-allergens seed-demo
+
+seed-allergens:
+	$(DC) run --rm django python manage.py seed_allergens
+
+seed-demo:
+	$(DC) run --rm django python manage.py seed_demo_data
+
+seed-demo-flush:
+	$(DC) run --rm django python manage.py seed_demo_data --flush
 
 # ---------------------------------------------------------------------------
 # run-frontend — start only the frontend service (and its logs)
@@ -66,7 +80,28 @@ run-backend:
 # test — run pytest inside the django container
 # ---------------------------------------------------------------------------
 test:
-	$(DC) run --rm django pytest --cov=. --cov-report=term-missing -v
+	$(DC) run --rm django pytest tests/ -v
+
+test-unit:
+	$(DC) run --rm django pytest tests/unit/ -v
+
+test-api:
+	$(DC) run --rm django pytest tests/api/ -v
+
+test-fast:
+	$(DC) run --rm django pytest tests/ -x -q
+
+coverage:
+	$(DC) run --rm django pytest tests/ \
+		--cov=core \
+		--cov=iam \
+		--cov=tenants \
+		--cov=assets \
+		--cov=foodservice \
+		--cov=meetings \
+		--cov=integrations \
+		--cov-report=term-missing \
+		--cov-fail-under=80
 
 # ---------------------------------------------------------------------------
 # build-frontend — production build inside the frontend container
