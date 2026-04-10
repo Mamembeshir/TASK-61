@@ -233,6 +233,119 @@ ANALYTICS_REFRESH_MINUTES = int(os.environ.get("ANALYTICS_REFRESH_MINUTES", "15"
 AUDIT_LOG_RETENTION_YEARS = int(os.environ.get("AUDIT_LOG_RETENTION_YEARS", "7"))
 
 # ---------------------------------------------------------------------------
+# Logging
+#
+# All output goes to stdout (12-factor / Docker-friendly; the container
+# runtime or log aggregator handles rotation and forwarding).
+#
+# Log levels:
+#   DEBUG=true  → harborops.* and integrations.* emit DEBUG+
+#   DEBUG=false → INFO+ only (no SQL, no debug noise)
+#
+# Sensitive-field policy (enforced by SensitiveFieldFilter on the console
+# handler):
+#   • Authorization / Cookie header values are always redacted.
+#   • password / token / secret / api_key values are always redacted.
+#   • The request-logging middleware logs only method, path, status,
+#     duration_ms, and user_id — no request bodies or raw headers.
+# ---------------------------------------------------------------------------
+_LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+
+    "filters": {
+        "sensitive_fields": {
+            "()": "core.log_filters.SensitiveFieldFilter",
+        },
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        },
+    },
+
+    "formatters": {
+        # Structured single-line format suitable for log aggregation (Loki, CloudWatch, etc.)
+        "structured": {
+            "format": "{asctime} {levelname:<8} {name} {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%dT%H:%M:%SZ",
+        },
+    },
+
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "structured",
+            "filters": ["sensitive_fields"],
+        },
+    },
+
+    # Root logger: WARNING+ to console so unexpected third-party noise surfaces.
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+
+    "loggers": {
+        # ----------------------------------------------------------------
+        # HarborOps application loggers
+        # ----------------------------------------------------------------
+        # Request-lifecycle logger used by core.middleware.RequestLoggingMiddleware
+        "harborops": {
+            "handlers": ["console"],
+            "level": _LOG_LEVEL,
+            "propagate": False,
+        },
+        # Celery task loggers (integrations.tasks uses __name__ → "integrations.tasks")
+        "integrations": {
+            "handlers": ["console"],
+            "level": _LOG_LEVEL,
+            "propagate": False,
+        },
+
+        # ----------------------------------------------------------------
+        # Django framework
+        # ----------------------------------------------------------------
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Security-related events (CSRF failures, SuspiciousOperation, etc.)
+        # Always at WARNING so they are never suppressed, even in prod quiet mode.
+        "django.security": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        # DB query logging is DEBUG-only; avoid in production to prevent
+        # query params (which may contain IDs) flooding the log stream.
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "WARNING",
+            "propagate": False,
+            "filters": ["require_debug_true"],
+        },
+
+        # ----------------------------------------------------------------
+        # Celery infrastructure
+        # ----------------------------------------------------------------
+        "celery": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "celery.task": {
+            "handlers": ["console"],
+            "level": _LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}
+
+# ---------------------------------------------------------------------------
 # Default primary key field type
 # ---------------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
