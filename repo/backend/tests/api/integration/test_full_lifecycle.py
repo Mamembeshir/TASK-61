@@ -100,7 +100,7 @@ class TestFullLifecycle:
         # Get version list to find version_id, then activate
         versions_resp = admin_client.get(f"{FOODSERVICE}recipes/{recipe_id}/versions/")
         assert_status(versions_resp, 200)
-        rv_id = versions_resp.data[0]["id"]
+        rv_id = versions_resp.data["results"][0]["id"]
         assert_status(admin_client.post(f"{FOODSERVICE}recipes/{recipe_id}/versions/{rv_id}/activate/"), 200)
 
         # --- Dish (+ first version in one call) ---
