@@ -15,8 +15,14 @@ class CursorPagination(_BaseCursorPagination):
     ordering = "-created_at"
     cursor_query_param = "cursor"
 
+    def paginate_queryset(self, queryset, request, view=None):
+        # Count total matching records before the cursor slices the queryset.
+        self._total_count = queryset.count()
+        return super().paginate_queryset(queryset, request, view)
+
     def get_paginated_response(self, data):
         return Response({
+            "count": self._total_count,
             "next_cursor": self.get_next_link(),
             "previous_cursor": self.get_previous_link(),
             "results": data,
@@ -26,6 +32,7 @@ class CursorPagination(_BaseCursorPagination):
         return {
             "type": "object",
             "properties": {
+                "count": {"type": "integer"},
                 "next_cursor": {"type": "string", "nullable": True},
                 "previous_cursor": {"type": "string", "nullable": True},
                 "results": schema,

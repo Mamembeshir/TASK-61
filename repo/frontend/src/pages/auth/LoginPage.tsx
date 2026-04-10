@@ -8,31 +8,40 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [username, setUsername]   = useState("");
-  const [password, setPassword]   = useState("");
-  const [showPw,   setShowPw]     = useState(false);
-  const [loading,  setLoading]    = useState(false);
-  const [error,    setError]      = useState<string | null>(null);
-  const [focusedField, setFocused] = useState<string | null>(null);
+  const [username,    setUsername]    = useState("");
+  const [password,    setPassword]    = useState("");
+  const [tenantSlug,  setTenantSlug]  = useState("");
+  const [showSlug,    setShowSlug]    = useState(false);
+  const [showPw,      setShowPw]      = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
+  const [focusedField, setFocused]    = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const user = await login(username, password);
+      const user = await login(username, password, tenantSlug || undefined);
       if (user.status === "PENDING_REVIEW")  navigate("/pending",      { replace: true });
       else if (user.status === "SUSPENDED")  navigate("/suspended",    { replace: true });
       else if (user.role === "ADMIN")        navigate("/admin/users",  { replace: true });
       else if (user.role === "COURIER")      navigate("/courier",      { replace: true });
       else                                   navigate("/dashboard",    { replace: true });
     } catch (err: any) {
-      setError(
+      const detail: string =
         err.response?.data?.detail ??
         err.response?.data?.non_field_errors?.[0] ??
         err.message ??
-        "Invalid credentials. Please try again."
-      );
+        "Invalid credentials. Please try again.";
+
+      // Auto-reveal organisation code field when the backend signals a collision
+      if (detail.includes("Multiple accounts")) {
+        setShowSlug(true);
+        setError("Multiple accounts share that username. Please enter your organisation code below.");
+      } else {
+        setError(detail);
+      }
     } finally {
       setLoading(false);
     }
@@ -221,7 +230,51 @@ export default function LoginPage() {
                 required
                 autoFocus
               />
+              {!showSlug && (
+                <button
+                  type="button"
+                  onClick={() => setShowSlug(true)}
+                  style={{
+                    marginTop: "6px",
+                    background: "none", border: "none", padding: 0,
+                    color: colors.textMuted, fontSize: font.size.xs,
+                    cursor: "pointer", textDecoration: "underline",
+                  }}
+                >
+                  Have multiple accounts? Add organisation code
+                </button>
+              )}
             </div>
+
+            {/* Organisation code (revealed on demand or on collision) */}
+            {showSlug && (
+              <div>
+                <label style={{
+                  display: "block",
+                  fontSize: font.size.sm,
+                  fontWeight: font.weight.medium,
+                  color: colors.textSecondary,
+                  marginBottom: "6px",
+                }}>
+                  Organisation code
+                  <span style={{ color: colors.textMuted, fontWeight: font.weight.normal }}> (optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={tenantSlug}
+                  onChange={e => setTenantSlug(e.target.value)}
+                  onFocus={() => setFocused("tenantSlug")}
+                  onBlur={() => setFocused(null)}
+                  style={inputStyle("tenantSlug")}
+                  placeholder="e.g. coastal-university"
+                  autoComplete="off"
+                  autoFocus
+                />
+                <div style={{ marginTop: "5px", fontSize: font.size.xs, color: colors.textMuted }}>
+                  Required when the same username exists across multiple organisations.
+                </div>
+              </div>
+            )}
 
             {/* Password */}
             <div>

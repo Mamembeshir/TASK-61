@@ -125,7 +125,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     // Load user stats
     Promise.allSettled([
-      adminApi.listUsers({ page: 1 }),
+      adminApi.listUsers({}),
       adminApi.listUsers({ status: "ACTIVE" }),
       adminApi.listUsers({ status: "PENDING_REVIEW" }),
       adminApi.listUsers({ status: "SUSPENDED" }),

@@ -65,9 +65,11 @@ const ROLES    = ["", "ADMIN", "STAFF", "COURIER"];
 export default function AdminUsersPage() {
   const navigate = useNavigate();
 
-  const [users,  setUsers]  = useState<AdminUserSummary[]>([]);
-  const [count,  setCount]  = useState(0);
-  const [page,   setPage]   = useState(1);
+  const [users,      setUsers]      = useState<AdminUserSummary[]>([]);
+  const [count,      setCount]      = useState(0);
+  const [cursor,     setCursor]     = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [prevCursor, setPrevCursor] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter,   setRoleFilter]   = useState("");
   const [search,       setSearch]       = useState("");
@@ -82,20 +84,20 @@ export default function AdminUsersPage() {
         status: statusFilter || undefined,
         role:   roleFilter   || undefined,
         search: search       || undefined,
-        page,
+        cursor: cursor       || undefined,
       });
       setUsers(result.results);
       setCount(result.count);
+      setNextCursor(result.next_cursor);
+      setPrevCursor(result.previous_cursor);
     } catch (e: any) {
       setError(e.message ?? "Failed to load users.");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, roleFilter, search, page]);
+  }, [statusFilter, roleFilter, search, cursor]);
 
   useEffect(() => { load(); }, [load]);
-
-  const totalPages = Math.ceil(count / 25) || 1;
 
   return (
     <div style={{ padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
@@ -115,19 +117,19 @@ export default function AdminUsersPage() {
         <input
           placeholder="Search username…"
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          onChange={(e) => { setSearch(e.target.value); setCursor(null); }}
           style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem", minWidth: "200px" }}
         />
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value); setCursor(null); }}
           style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem" }}
         >
           {STATUSES.map(s => <option key={s} value={s}>{s || "All Statuses"}</option>)}
         </select>
         <select
           value={roleFilter}
-          onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setRoleFilter(e.target.value); setCursor(null); }}
           style={{ padding: "6px 10px", border: "1px solid #ced4da", borderRadius: "6px", fontSize: "0.9rem" }}
         >
           {ROLES.map(r => <option key={r} value={r}>{r || "All Roles"}</option>)}
@@ -180,13 +182,11 @@ export default function AdminUsersPage() {
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {(prevCursor || nextCursor) && (
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            style={pagBtn}>← Prev</button>
-          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>Page {page} / {totalPages} ({count} total)</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            style={pagBtn}>Next →</button>
+          <button onClick={() => setCursor(prevCursor)} disabled={!prevCursor} style={pagBtn}>← Prev</button>
+          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>{count} total</span>
+          <button onClick={() => setCursor(nextCursor)} disabled={!nextCursor} style={pagBtn}>Next →</button>
         </div>
       )}
     </div>

@@ -32,7 +32,7 @@ That's it. On first boot the Django container will automatically:
 | **Django Admin** | http://localhost:8000/admin/ | Built-in admin interface |
 | **API Health** | http://localhost:8000/api/v1/core/health/ | Liveness/readiness probe |
 | **MySQL** | localhost:3306 | Database (harborops / harborops) |
-| **Redis** | localhost:6379 | Task queue & cache |
+| **Redis** | localhost:6380 | Task queue & cache |
 
 ---
 
@@ -161,9 +161,9 @@ MySQL :3306  Redis :6379
         Celery Worker + Beat
 ```
 
-Full architecture documentation: `docs/design.md`  
-API reference: `docs/api-spec.md`  
-Business logic Q&A: `docs/questions.md`
+Full architecture documentation: [`../docs/design.md`](../docs/design.md)  
+API reference: [`../docs/api-spec.md`](../docs/api-spec.md)  
+Business logic Q&A: [`../docs/questions.md`](../docs/questions.md)
 
 ---
 

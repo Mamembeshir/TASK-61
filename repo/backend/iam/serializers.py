@@ -191,11 +191,12 @@ class UserProfileSerializer(serializers.Serializer):
     Flat read-only representation of User + UserProfile.
     government_id is always returned as the pre-computed mask — never plaintext.
     """
-    id          = serializers.UUIDField()
-    username    = serializers.CharField()
-    role        = serializers.CharField()
-    status      = serializers.CharField()
-    tenant_slug = serializers.SerializerMethodField()
+    id           = serializers.UUIDField()
+    username     = serializers.CharField()
+    role         = serializers.CharField()
+    status       = serializers.CharField()
+    is_superuser = serializers.BooleanField()
+    tenant_slug  = serializers.SerializerMethodField()
 
     # Profile fields — None when no profile exists
     legal_first_name        = serializers.SerializerMethodField()

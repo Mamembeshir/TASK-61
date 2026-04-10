@@ -42,6 +42,7 @@ describe("authApi.login", () => {
       status: "ACTIVE",
       tenantId: "acme",
       legalFirstName: "Alice",
+      isSuperuser: false,
     });
   });
 
@@ -83,6 +84,7 @@ describe("authApi.me", () => {
       status: "ACTIVE",
       tenantId: "acme",
       legalFirstName: "Alice",
+      isSuperuser: false,
     });
   });
 

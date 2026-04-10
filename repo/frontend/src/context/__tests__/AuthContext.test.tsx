@@ -93,7 +93,7 @@ describe("AuthProvider — login", () => {
     });
 
     await waitFor(() => expect(screen.getByText("user:alice")).toBeInTheDocument());
-    expect(mockLogin).toHaveBeenCalledWith("alice", "pass");
+    expect(mockLogin).toHaveBeenCalledWith("alice", "pass", undefined);
   });
 
   it("propagates login errors to the caller", async () => {

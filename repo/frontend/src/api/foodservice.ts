@@ -301,5 +301,5 @@ export const menuApi = {
 // ── Sites (for publish modal) ──────────────────────────────────────────────
 export const foodSiteApi = {
   list: (): Promise<FoodSite[]> =>
-    apiClient.get("assets/sites/").then((r) => r.data),
+    apiClient.get("tenants/sites/").then((r) => r.data),
 };

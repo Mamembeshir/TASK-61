@@ -6,13 +6,13 @@ All endpoints require IsAdmin permission (role=ADMIN, status=ACTIVE).
 """
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import get_object_or_404
 
 from core.exceptions import ConflictError, UnprocessableEntity
 from core.models import AuditLog
+from core.pagination import CursorPagination
 from iam.models import User, UserProfile, UserSiteAssignment
 from iam.permissions import IsAdmin
 from iam.admin_serializers import (
@@ -24,24 +24,6 @@ from iam.admin_serializers import (
     CreateCourierSerializer,
 )
 from tenants.models import Site
-
-
-# ---------------------------------------------------------------------------
-# Pagination
-# ---------------------------------------------------------------------------
-
-class AdminPagination(PageNumberPagination):
-    page_size = 25
-    page_size_query_param = "page_size"
-    max_page_size = 100
-
-    def get_paginated_response(self, data):
-        return Response({
-            "count": self.page.paginator.count,
-            "next": self.get_next_link(),
-            "previous": self.get_previous_link(),
-            "results": data,
-        })
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +85,7 @@ class UserListView(APIView):
         if search:
             qs = qs.filter(username__icontains=search)
 
-        paginator = AdminPagination()
+        paginator = CursorPagination()
         page = paginator.paginate_queryset(qs, request)
         serializer = AdminUserListSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)

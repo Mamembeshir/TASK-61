@@ -8,12 +8,13 @@ export interface CurrentUser {
   status: "PENDING_REVIEW" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
   tenantId: string | null;
   legalFirstName: string | null;
+  isSuperuser: boolean;
 }
 
 interface AuthContextValue {
   currentUser: CurrentUser | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<CurrentUser>;
+  login: (username: string, password: string, tenantSlug?: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
 }
 
@@ -32,8 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (username: string, password: string): Promise<CurrentUser> => {
-    const user = await authApi.login(username, password);
+  const login = useCallback(async (username: string, password: string, tenantSlug?: string): Promise<CurrentUser> => {
+    const user = await authApi.login(username, password, tenantSlug);
     setCurrentUser(user);
     return user;
   }, []);

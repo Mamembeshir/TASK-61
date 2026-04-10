@@ -52,8 +52,8 @@ export interface AssetDetail extends AssetSummary {
 
 export interface PaginatedAssets {
   count: number;
-  next: string | null;
-  previous: string | null;
+  next_cursor: string | null;
+  previous_cursor: string | null;
   results: AssetSummary[];
 }
 
@@ -148,7 +148,7 @@ export const assetsApi = {
     site_id?: string;
     classification_id?: string;
     search?: string;
-    page?: number;
+    cursor?: string;
     page_size?: number;
     include_deleted?: boolean;
   }): Promise<PaginatedAssets> {

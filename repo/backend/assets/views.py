@@ -19,15 +19,15 @@ Fingerprint:
 from rest_framework.views     import APIView
 from rest_framework.response  import Response
 from rest_framework           import status
-from rest_framework.pagination import PageNumberPagination
 
 from django.conf      import settings
 from django.shortcuts import get_object_or_404
 from django.utils     import timezone
 from django.utils.dateparse import parse_datetime
 
-from core.exceptions import ConflictError, UnprocessableEntity
-from core.models     import AuditLog
+from core.exceptions  import ConflictError, UnprocessableEntity
+from core.models      import AuditLog
+from core.pagination  import CursorPagination
 from assets.models       import Asset, AssetClassification, AssetVersion
 from assets.permissions  import IsNotCourier
 from assets.serializers  import (
@@ -44,12 +44,6 @@ from assets.serializers  import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-class AssetPagination(PageNumberPagination):
-    page_size             = 25
-    page_size_query_param = "page_size"
-    max_page_size         = 100
-
 
 def _get_ip(request):
     xff = request.META.get("HTTP_X_FORWARDED_FOR")
@@ -100,7 +94,6 @@ def _log(request, action, asset):
 
 class AssetListCreateView(APIView):
     permission_classes = [IsNotCourier]
-    pagination_class   = AssetPagination
 
     def get(self, request):
         qs = _base_asset_queryset(request.user)
@@ -120,9 +113,7 @@ class AssetListCreateView(APIView):
         if not include_deleted:
             qs = qs.filter(is_deleted=False)
 
-        qs = qs.order_by("-created_at")
-
-        paginator = self.pagination_class()
+        paginator = CursorPagination()
         page      = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(
             AssetListSerializer(page, many=True).data

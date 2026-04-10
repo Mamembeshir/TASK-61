@@ -10,17 +10,19 @@ export default function AssetsPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === "ADMIN";
 
-  const [assets,   setAssets]   = useState<AssetSummary[]>([]);
-  const [count,    setCount]    = useState(0);
-  const [page,     setPage]     = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [search,   setSearch]   = useState("");
-  const [siteId,   setSiteId]   = useState("");
-  const [clsId,    setClsId]    = useState("");
+  const [assets,     setAssets]     = useState<AssetSummary[]>([]);
+  const [count,      setCount]      = useState(0);
+  const [cursor,     setCursor]     = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [prevCursor, setPrevCursor] = useState<string | null>(null);
+  const [pageSize,   setPageSize]   = useState(25);
+  const [search,     setSearch]     = useState("");
+  const [siteId,     setSiteId]     = useState("");
+  const [clsId,      setClsId]      = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [exporting,  setExporting]  = useState(false);
 
   const [sites, setSites]                   = useState<Site[]>([]);
   const [classifications, setClassifications] = useState<Classification[]>([]);
@@ -40,21 +42,21 @@ export default function AssetsPage() {
         site_id:            siteId      || undefined,
         classification_id:  clsId       || undefined,
         include_deleted:    showDeleted || undefined,
-        page,
-        page_size: pageSize,
+        cursor:             cursor      || undefined,
+        page_size:          pageSize,
       });
       setAssets(res.results);
       setCount(res.count);
+      setNextCursor(res.next_cursor);
+      setPrevCursor(res.previous_cursor);
     } catch (e: any) {
       setError(e.message ?? "Failed to load assets.");
     } finally {
       setLoading(false);
     }
-  }, [search, siteId, clsId, showDeleted, page, pageSize]);
+  }, [search, siteId, clsId, showDeleted, cursor, pageSize]);
 
   useEffect(() => { load(); }, [load]);
-
-  const totalPages = Math.max(1, Math.ceil(count / pageSize));
 
   async function handleExport() {
     setExporting(true);
@@ -89,13 +91,13 @@ export default function AssetsPage() {
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <SearchInput
           value={search}
-          onChange={(v) => { setSearch(v); setPage(1); }}
+          onChange={(v) => { setSearch(v); setCursor(null); }}
           placeholder="Search code or name…"
         />
 
         <select
           value={siteId}
-          onChange={(e) => { setSiteId(e.target.value); setPage(1); }}
+          onChange={(e) => { setSiteId(e.target.value); setCursor(null); }}
           style={selectStyle}
         >
           <option value="">All Sites</option>
@@ -105,7 +107,7 @@ export default function AssetsPage() {
         <TreeSelect
           classifications={classifications}
           value={clsId}
-          onChange={(v) => { setClsId(v); setPage(1); }}
+          onChange={(v) => { setClsId(v); setCursor(null); }}
           placeholder="All Classifications"
         />
 
@@ -114,7 +116,7 @@ export default function AssetsPage() {
             <input
               type="checkbox"
               checked={showDeleted}
-              onChange={(e) => { setShowDeleted(e.target.checked); setPage(1); }}
+              onChange={(e) => { setShowDeleted(e.target.checked); setCursor(null); }}
             />
             Show deleted
           </label>
@@ -122,7 +124,7 @@ export default function AssetsPage() {
 
         <select
           value={pageSize}
-          onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+          onChange={(e) => { setPageSize(Number(e.target.value)); setCursor(null); }}
           style={{ ...selectStyle, minWidth: "auto" }}
         >
           <option value={25}>25 / page</option>
@@ -191,13 +193,11 @@ export default function AssetsPage() {
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {(prevCursor || nextCursor) && (
         <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={pagBtn}>← Prev</button>
-          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>
-            Page {page} / {totalPages} ({count} total)
-          </span>
-          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={pagBtn}>Next →</button>
+          <button onClick={() => setCursor(prevCursor)} disabled={!prevCursor} style={pagBtn}>← Prev</button>
+          <span style={{ fontSize: "0.9rem", color: "#6c757d" }}>{count} total</span>
+          <button onClick={() => setCursor(nextCursor)} disabled={!nextCursor} style={pagBtn}>Next →</button>
         </div>
       )}
     </div>

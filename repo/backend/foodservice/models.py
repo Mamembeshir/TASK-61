@@ -672,8 +672,8 @@ class MenuVersion(models.Model):
                         f"Dish version '{item.dish_version}' in group '{group.name}' is not ACTIVE."
                     )
 
-        # Resolve sites
-        sites = list(Site.objects.filter(pk__in=site_ids))
+        # Resolve sites — scoped to this menu's tenant to prevent cross-tenant targeting
+        sites = list(Site.objects.filter(pk__in=site_ids, tenant=self.menu.tenant))
         if len(sites) != len(set(str(s) for s in site_ids)):
             pass  # duplicates collapse naturally
         found_ids = {str(s.pk) for s in sites}

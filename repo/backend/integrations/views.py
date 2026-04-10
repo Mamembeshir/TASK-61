@@ -122,6 +122,22 @@ class AlertListView(APIView):
         return Response(serializer.data)
 
 
+class AlertDetailView(APIView):
+    """
+    GET /api/v1/integrations/alerts/<pk>/
+    ADMIN: any alert in tenant. STAFF: only if assigned to them.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        _require_not_courier(request)
+        qs = Alert.objects.filter(tenant=request.user.tenant)
+        if request.user.role == "STAFF":
+            qs = qs.filter(assigned_to=request.user)
+        alert = get_object_or_404(qs.select_related("assigned_to", "acknowledged_by", "closed_by"), pk=pk)
+        return Response(AlertSerializer(alert).data)
+
+
 class AlertAcknowledgeView(APIView):
     """
     POST /api/v1/integrations/alerts/<pk>/acknowledge/

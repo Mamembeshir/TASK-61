@@ -11,6 +11,7 @@ Access control:
 Audit log: every mutating operation records an AuditLog entry.
 """
 import os
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -113,9 +114,20 @@ MAX_ATTACHMENTS_PER_MEETING = 10
 
 
 def _save_attachment(meeting_id, uploaded_file):
-    """Validate and persist an uploaded file. Returns relative path string."""
-    filename = uploaded_file.name
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    """Validate and persist an uploaded file. Returns relative path string.
+
+    Security: the original client filename is never used as a filesystem path.
+    Only the extension (validated against an allowlist) is taken from the
+    basename of the original name; the stored filename is a UUID.
+    """
+    # Strip any directory components the client may have injected
+    safe_basename = os.path.basename(uploaded_file.name)
+    # Reject names that still contain a path separator after basename (shouldn't
+    # happen on any sane OS, but belt-and-suspenders)
+    if os.sep in safe_basename or (os.altsep and os.altsep in safe_basename):
+        raise UnprocessableEntity("Invalid attachment filename.")
+
+    ext = safe_basename.rsplit(".", 1)[-1].lower() if "." in safe_basename else ""
     if ext not in ALLOWED_EXTENSIONS:
         raise UnprocessableEntity(
             f"Attachment extension '.{ext}' is not allowed. "
@@ -135,14 +147,17 @@ def _save_attachment(meeting_id, uploaded_file):
             f"Meeting already has {existing_count} attachments (maximum is {MAX_ATTACHMENTS_PER_MEETING})."
         )
 
+    # Use a UUID-based server-side filename to prevent path traversal and
+    # information disclosure via client-supplied names.
+    server_filename = f"{uuid.uuid4().hex}.{ext}"
     media_root = getattr(settings, "MEDIA_ROOT", "/tmp/media")
     dest_dir = os.path.join(media_root, "meeting_attachments", str(meeting_id))
     os.makedirs(dest_dir, exist_ok=True)
-    dest_path = os.path.join(dest_dir, filename)
+    dest_path = os.path.join(dest_dir, server_filename)
     with open(dest_path, "wb") as fh:
         for chunk in uploaded_file.chunks():
             fh.write(chunk)
-    return f"meeting_attachments/{meeting_id}/{filename}"
+    return f"meeting_attachments/{meeting_id}/{server_filename}"
 
 
 # ---------------------------------------------------------------------------

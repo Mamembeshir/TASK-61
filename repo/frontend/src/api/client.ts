@@ -4,6 +4,13 @@
  * - Reads CSRF token from the `csrftoken` cookie and sends it as X-CSRFToken header
  * - Sends credentials (session cookie) with every request
  * - Attaches DRF Token auth header when a token is stored in sessionStorage
+ *
+ * Anti-tampering / request integrity:
+ * The combination of CSRF token (prevents cross-site request forgery) and Bearer
+ * token (ensures only authenticated clients mutate state) is the accepted security
+ * model for this application. Per-request HMAC signing is not used: a shared secret
+ * embedded in client-side JS would be visible to all users and add no real security
+ * beyond what CSRF + token auth already provide. See docs/design.md §8.
  */
 import axios from "axios";
 

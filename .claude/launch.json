@@ -6,6 +6,7 @@
       "runtimeExecutable": "docker-compose",
       "runtimeArgs": ["-f", "repo/docker-compose.yml", "up", "--build"],
       "port": 5173,
+      "autoPort": false,
       "cwd": "/Users/muhammed/projects/eaglepoint/w2t61"
     }
   ]

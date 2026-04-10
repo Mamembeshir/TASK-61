@@ -9,12 +9,15 @@ function toCurrentUser(data: any): CurrentUser {
     status: data.status,
     tenantId: data.tenant_slug ?? null,
     legalFirstName: data.legal_first_name ?? null,
+    isSuperuser: data.is_superuser ?? false,
   };
 }
 
 export const authApi = {
-  async login(username: string, password: string): Promise<CurrentUser> {
-    const { data } = await apiClient.post("auth/login/", { username, password });
+  async login(username: string, password: string, tenantSlug?: string): Promise<CurrentUser> {
+    const body: Record<string, string> = { username, password };
+    if (tenantSlug) body.tenant_slug = tenantSlug;
+    const { data } = await apiClient.post("auth/login/", body);
     if (data.token) sessionStorage.setItem("auth_token", data.token);
     // Login response: { token, profile }
     return toCurrentUser(data.profile);

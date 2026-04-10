@@ -5,8 +5,9 @@ from django.urls import path, include
 
 urlpatterns = [
     path("auth/",         include("iam.urls")),
-    path("admin/users/",  include("iam.admin_urls")),
-    path("admin/sites/",  include("iam.admin_urls_sites")),
+    path("admin/users/",   include("iam.admin_urls")),
+    path("admin/sites/",   include("iam.admin_urls_sites")),
+    path("admin/tenants/", include("tenants.admin_urls")),
     path("tenants/",      include("tenants.urls")),
     path("assets/",              include("assets.urls")),
     path("asset-classifications/", include("assets.classification_urls")),

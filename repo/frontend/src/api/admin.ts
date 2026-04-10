@@ -39,10 +39,30 @@ export interface Site {
   timezone: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantSite {
+  id: string;
+  tenant: string;
+  name: string;
+  address: string;
+  timezone: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedUsers {
   count: number;
-  next: string | null;
-  previous: string | null;
+  next_cursor: string | null;
+  previous_cursor: string | null;
   results: AdminUserSummary[];
 }
 
@@ -55,7 +75,7 @@ export const adminApi = {
     status?: string;
     role?: string;
     search?: string;
-    page?: number;
+    cursor?: string;
   }): Promise<PaginatedUsers> {
     const { data } = await apiClient.get("admin/users/", { params });
     return data;
@@ -122,6 +142,45 @@ export const adminApi = {
 
   async listSites(): Promise<Site[]> {
     const { data } = await apiClient.get("admin/sites/");
+    return data;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Tenants (superuser only)
+  // ---------------------------------------------------------------------------
+
+  async listTenants(): Promise<Tenant[]> {
+    const { data } = await apiClient.get("admin/tenants/");
+    return data;
+  },
+
+  async createTenant(payload: { name: string; slug: string; is_active?: boolean }): Promise<Tenant> {
+    const { data } = await apiClient.post("admin/tenants/", payload);
+    return data;
+  },
+
+  async getTenant(id: string): Promise<Tenant> {
+    const { data } = await apiClient.get(`admin/tenants/${id}/`);
+    return data;
+  },
+
+  async updateTenant(id: string, payload: Partial<Pick<Tenant, "name" | "slug" | "is_active">>): Promise<Tenant> {
+    const { data } = await apiClient.patch(`admin/tenants/${id}/`, payload);
+    return data;
+  },
+
+  async listTenantSites(tenantId: string): Promise<TenantSite[]> {
+    const { data } = await apiClient.get(`admin/tenants/${tenantId}/sites/`);
+    return data;
+  },
+
+  async createTenantSite(tenantId: string, payload: { name: string; address?: string; timezone?: string; is_active?: boolean }): Promise<TenantSite> {
+    const { data } = await apiClient.post(`admin/tenants/${tenantId}/sites/`, payload);
+    return data;
+  },
+
+  async updateTenantSite(tenantId: string, siteId: string, payload: Partial<Pick<TenantSite, "name" | "address" | "timezone" | "is_active">>): Promise<TenantSite> {
+    const { data } = await apiClient.patch(`admin/tenants/${tenantId}/sites/${siteId}/`, payload);
     return data;
   },
 };

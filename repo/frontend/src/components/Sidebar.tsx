@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard, Users, Package, ChefHat, BookOpen, Utensils,
   ClipboardList, Calendar, CheckSquare, Bell, BarChart2, Webhook,
-  Truck, LogOut, ChevronLeft, ChevronRight, Shield,
+  Truck, LogOut, ChevronLeft, ChevronRight, Shield, Building2,
 } from "lucide-react";
 import { colors, radius, transition, font } from "@/styles/tokens";
 
@@ -108,9 +108,12 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["Kitchen"]));
 
   const role = currentUser?.role ?? "STAFF";
-  const navItems =
+  const baseNav =
     role === "ADMIN"   ? ADMIN_NAV   :
     role === "COURIER" ? COURIER_NAV : STAFF_NAV;
+  const navItems: NavItem[] = currentUser?.isSuperuser
+    ? [...baseNav, { label: "Tenants", to: "/admin/tenants", icon: <Building2 size={ICON_SIZE} /> }]
+    : baseNav;
 
   const displayName = currentUser?.legalFirstName ?? currentUser?.username ?? "User";
 

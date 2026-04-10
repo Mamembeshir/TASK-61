@@ -590,7 +590,7 @@ def _menu_log(request, action, menu, extra=None):
     )
 
 
-def _build_menu_groups(version, groups_data):
+def _build_menu_groups(version, groups_data, tenant):
     """Create MenuGroup and MenuGroupItem objects from validated write data."""
     for group_data in groups_data:
         items_data = group_data.pop("items", [])
@@ -606,6 +606,7 @@ def _build_menu_groups(version, groups_data):
             dish_version = get_object_or_404(
                 _DishVersion,
                 pk=item_data["dish_version_id"],
+                dish__tenant=tenant,
             )
             MenuGroupItem.objects.create(
                 menu_group   = group,
@@ -651,7 +652,7 @@ class MenuListCreateView(APIView):
                 status         = MenuVersion.Status.DRAFT,
                 created_by     = request.user,
             )
-            _build_menu_groups(version, d.get("groups", []))
+            _build_menu_groups(version, d.get("groups", []), request.user.tenant)
 
         _menu_log(request, AuditLog.Action.CREATE, menu)
         menu_out = Menu.objects.prefetch_related(
@@ -706,7 +707,7 @@ class MenuVersionListCreateView(APIView):
                 status         = MenuVersion.Status.DRAFT,
                 created_by     = request.user,
             )
-            _build_menu_groups(version, d.get("groups", []))
+            _build_menu_groups(version, d.get("groups", []), request.user.tenant)
 
         _menu_log(request, AuditLog.Action.CREATE, menu, extra={"version_number": version.version_number})
         v = MenuVersion.objects.prefetch_related(

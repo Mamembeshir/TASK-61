@@ -200,6 +200,33 @@ List sites visible to the current user.
 - **ADMIN** → all active sites in tenant
 - **STAFF / COURIER** → only assigned active sites
 
+---
+
+### Tenant Administration (superuser only)
+
+All endpoints below require `is_superuser=True`. Regular tenant users (ADMIN/STAFF/COURIER) receive 403.
+
+#### `GET /api/v1/admin/tenants/`
+List all tenants.
+
+#### `POST /api/v1/admin/tenants/`
+Create a tenant. Body: `{ "name": "...", "slug": "...", "is_active": true }`
+
+#### `GET /api/v1/admin/tenants/<id>/`
+Retrieve a single tenant.
+
+#### `PATCH /api/v1/admin/tenants/<id>/`
+Update `name`, `slug`, or `is_active`.
+
+#### `GET /api/v1/admin/tenants/<id>/sites/`
+List all sites (active and inactive) for a tenant.
+
+#### `POST /api/v1/admin/tenants/<id>/sites/`
+Create a site under a tenant. Body: `{ "name": "...", "address": "...", "timezone": "America/New_York", "is_active": true }`
+
+#### `PATCH /api/v1/admin/tenants/<id>/sites/<site_id>/`
+Update a site's `name`, `address`, `timezone`, or `is_active`.
+
 **Response 200**
 ```json
 [

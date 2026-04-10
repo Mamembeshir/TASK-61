@@ -35,6 +35,8 @@ import AdminUsersPage from "@/pages/admin/AdminUsersPage";
 import AdminUserDetailPage from "@/pages/admin/AdminUserDetailPage";
 import CreateCourierPage from "@/pages/admin/CreateCourierPage";
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
+import AdminTenantsPage from "@/pages/admin/AdminTenantsPage";
+import AdminTenantDetailPage from "@/pages/admin/AdminTenantDetailPage";
 import CourierPage from "@/pages/courier/CourierPage";
 
 // ---------------------------------------------------------------------------
@@ -121,6 +123,13 @@ function RedirectIfAuth({ children }: { children: React.ReactNode }) {
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   if (currentUser?.role !== "ADMIN") return <AccessDeniedPage />;
+  return <>{children}</>;
+}
+
+/** Only allow superusers */
+function RequireSuperuser({ children }: { children: React.ReactNode }) {
+  const { currentUser } = useAuth();
+  if (!currentUser?.isSuperuser) return <AccessDeniedPage />;
   return <>{children}</>;
 }
 
@@ -266,6 +275,14 @@ function AppRoutes() {
       } />
       <Route path="/admin" element={
         <RequireAuth><RequireAdmin><Layout><AdminDashboardPage /></Layout></RequireAdmin></RequireAuth>
+      } />
+
+      {/* Superuser — tenant management */}
+      <Route path="/admin/tenants/:id" element={
+        <RequireAuth><RequireSuperuser><Layout><AdminTenantDetailPage /></Layout></RequireSuperuser></RequireAuth>
+      } />
+      <Route path="/admin/tenants" element={
+        <RequireAuth><RequireSuperuser><Layout><AdminTenantsPage /></Layout></RequireSuperuser></RequireAuth>
       } />
 
       {/* Error pages */}

@@ -202,6 +202,7 @@ POST requests may include an `Idempotency-Key` header. When present:
 | Rate limiting        | Redis sliding window: 100 req/min per tenant          |
 | Tenant isolation     | FK + queryset filtering enforced in every view        |
 | Immutable audit logs | `save()`/`delete()` overrides raise `PermissionError` |
+| Request integrity    | CSRF token (`X-CSRFToken`) for session-authenticated requests; Bearer token (`Authorization: Token <tok>`) for all API calls. Together these prevent CSRF and ensure only legitimate, authenticated clients can mutate state. HMAC-per-request signing is intentionally omitted: embedding a shared secret in client-side JS would be visible to every user and provide no meaningful additional protection over the existing controls. |
 
 ---
 
