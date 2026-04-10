@@ -831,5 +831,5 @@ class SiteActiveMenusView(APIView):
         versions = MenuVersion.objects.filter(pk__in=version_ids).prefetch_related(
             "groups__items__dish_version",
             "site_releases",
-        )
-        return Response(MenuVersionReadSerializer(versions, many=True).data)
+        ).order_by("-version_number")
+        return paginate_list(request, versions, MenuVersionReadSerializer, ordering="-version_number")

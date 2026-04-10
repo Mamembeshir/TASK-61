@@ -469,7 +469,7 @@ class AttendanceListCreateView(APIView):
     def get(self, request, pk):
         meeting = _get_meeting(request, pk)
         attendances = meeting.attendances.select_related("user").order_by("signed_at")
-        return Response(AttendanceSerializer(attendances, many=True).data)
+        return paginate_list(request, attendances, AttendanceSerializer, ordering="signed_at")
 
     @transaction.atomic
     def post(self, request, pk):

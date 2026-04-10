@@ -478,7 +478,7 @@ class TestSiteActiveMenus:
 
         list_resp = admin_client.get(f"/api/v1/foodservice/sites/{site.pk}/active-menus/")
         assert_status(list_resp, 200)
-        data = list_resp.json()
+        data = list_resp.json()["results"]
         assert len(data) == 1
         assert data[0]["id"] == str(version.pk)
 
@@ -500,7 +500,7 @@ class TestSiteActiveMenus:
 
         list_resp = admin_client.get(f"/api/v1/foodservice/sites/{site.pk}/active-menus/")
         assert_status(list_resp, 200)
-        assert list_resp.json() == []
+        assert list_resp.json()["results"] == []
 
 
 # ---------------------------------------------------------------------------

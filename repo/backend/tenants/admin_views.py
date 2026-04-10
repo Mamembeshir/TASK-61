@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from core.audit import log_audit
 from core.models import AuditLog
+from core.pagination import paginate_list
 from iam.permissions import IsSuperuser
 from tenants.models import Site, Tenant
 from tenants.serializers import SiteAdminSerializer, TenantSerializer
@@ -26,7 +27,7 @@ class TenantListCreateView(APIView):
 
     def get(self, request):
         tenants = Tenant.objects.all().order_by("name")
-        return Response(TenantSerializer(tenants, many=True).data)
+        return paginate_list(request, tenants, TenantSerializer, ordering="name")
 
     def post(self, request):
         ser = TenantSerializer(data=request.data)
@@ -80,7 +81,7 @@ class TenantSiteListCreateView(APIView):
     def get(self, request, pk):
         tenant = get_object_or_404(Tenant, pk=pk)
         sites = Site.objects.filter(tenant=tenant).order_by("name")
-        return Response(SiteAdminSerializer(sites, many=True).data)
+        return paginate_list(request, sites, SiteAdminSerializer, ordering="name")
 
     def post(self, request, pk):
         tenant = get_object_or_404(Tenant, pk=pk)
