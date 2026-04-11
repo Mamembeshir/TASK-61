@@ -645,8 +645,7 @@ class MenuListCreateView(APIView):
         menus = Menu.objects.filter(tenant=request.user.tenant).prefetch_related(
             "versions__site_releases",
         )
-        ser = MenuListSerializer(menus, many=True)
-        return Response(ser.data)
+        return paginate_list(request, menus, MenuListSerializer, ordering="name")
 
     def post(self, request):
         ser = MenuCreateSerializer(data=request.data)

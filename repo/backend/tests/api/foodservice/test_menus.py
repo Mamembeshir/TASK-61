@@ -610,3 +610,120 @@ class TestCrossTenantIsolation:
         assert not MenuSiteRelease.objects.filter(
             menu_version=version, site=other_tenant_site
         ).exists()
+
+
+# ---------------------------------------------------------------------------
+# 11. Menu list pagination  GET /api/v1/foodservice/menus/
+# ---------------------------------------------------------------------------
+
+class TestMenuListPagination:
+    """
+    MenuListCreateView.get must return the shared CursorPagination envelope
+    ``{"count", "next_cursor", "previous_cursor", "results"}`` — not a raw
+    serialized array — so it matches every other list endpoint in the API.
+    """
+
+    def test_list_returns_paginated_envelope(self, admin_client, active_dish, assert_status):
+        _create_menu(admin_client, active_dish, name="Alpha Menu")
+        _create_menu(admin_client, active_dish, name="Bravo Menu")
+
+        resp = admin_client.get(MENUS_URL)
+        assert_status(resp, 200)
+        body = resp.json()
+
+        assert set(body.keys()) >= {"count", "next_cursor", "previous_cursor", "results"}
+        assert isinstance(body["results"], list)
+        assert body["count"] == 2
+        assert len(body["results"]) == 2
+        names = [m["name"] for m in body["results"]]
+        assert sorted(names) == ["Alpha Menu", "Bravo Menu"]
+
+    def test_list_empty_returns_envelope(self, admin_client, assert_status):
+        resp = admin_client.get(MENUS_URL)
+        assert_status(resp, 200)
+        body = resp.json()
+        assert body["count"] == 0
+        assert body["results"] == []
+        assert body["next_cursor"] is None
+        assert body["previous_cursor"] is None
+
+    def test_list_ordered_by_name(self, admin_client, active_dish, assert_status):
+        _create_menu(admin_client, active_dish, name="Charlie Menu")
+        _create_menu(admin_client, active_dish, name="Alpha Menu")
+        _create_menu(admin_client, active_dish, name="Bravo Menu")
+
+        resp = admin_client.get(MENUS_URL)
+        assert_status(resp, 200)
+        names = [m["name"] for m in resp.json()["results"]]
+        assert names == ["Alpha Menu", "Bravo Menu", "Charlie Menu"]
+
+    def test_list_respects_page_size(self, admin_client, active_dish, assert_status):
+        for i in range(5):
+            _create_menu(admin_client, active_dish, name=f"Menu {i:02d}")
+
+        resp = admin_client.get(f"{MENUS_URL}?page_size=2")
+        assert_status(resp, 200)
+        body = resp.json()
+        assert body["count"] == 5
+        assert len(body["results"]) == 2
+        assert body["next_cursor"] is not None
+
+    def test_list_cursor_walks_full_result_set(self, admin_client, active_dish, assert_status):
+        """Following next_cursor must visit every menu exactly once."""
+        from urllib.parse import urlparse
+
+        expected = [f"Menu {i:02d}" for i in range(5)]
+        for name in expected:
+            _create_menu(admin_client, active_dish, name=name)
+
+        seen: list[str] = []
+        url = f"{MENUS_URL}?page_size=2"
+        while url:
+            resp = admin_client.get(url)
+            assert_status(resp, 200)
+            body = resp.json()
+            seen.extend(m["name"] for m in body["results"])
+            # next_cursor is an absolute URL (http://testserver/...); the
+            # SignedAPIClient signs request.path, so hand it the relative
+            # path + query string only.
+            if body["next_cursor"]:
+                parsed = urlparse(body["next_cursor"])
+                url = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+            else:
+                url = None
+
+        assert sorted(seen) == expected
+        assert len(seen) == len(set(seen))  # no duplicates across pages
+
+    def test_list_is_tenant_scoped(
+        self, admin_client, active_dish, tenant, milk, assert_status,
+    ):
+        """Menus from another tenant must not appear in this tenant's list."""
+        from iam.factories import TenantFactory, AdminUserFactory
+
+        _create_menu(admin_client, active_dish, name="My Menu")
+
+        # Build a menu in a different tenant directly via the ORM.
+        other_tenant = TenantFactory()
+        other_admin = AdminUserFactory(tenant=other_tenant)
+        foreign_menu = Menu.objects.create(
+            tenant=other_tenant, name="Foreign Menu", created_by=other_admin,
+        )
+        MenuVersion.objects.create(
+            menu=foreign_menu,
+            version_number=1,
+            status=MenuVersion.Status.DRAFT,
+            created_by=other_admin,
+        )
+
+        resp = admin_client.get(MENUS_URL)
+        assert_status(resp, 200)
+        body = resp.json()
+        names = [m["name"] for m in body["results"]]
+        assert "My Menu" in names
+        assert "Foreign Menu" not in names
+        assert body["count"] == 1
+
+    def test_courier_cannot_list_menus(self, courier_client, assert_status):
+        resp = courier_client.get(MENUS_URL)
+        assert_status(resp, 403)

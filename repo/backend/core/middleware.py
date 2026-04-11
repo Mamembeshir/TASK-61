@@ -131,10 +131,16 @@ class IdempotencyMiddleware:
             return self.get_response(request)
 
         # ------------------------------------------------------------------
-        # Scope key by endpoint + actor so keys cannot cross user/path boundaries
+        # Scope key by endpoint + actor so keys cannot cross user/path boundaries.
+        #
+        # Token auth is resolved by DRF inside the view (TokenAuthentication is an
+        # auth class, not a middleware), so `request.user` is still AnonymousUser
+        # here for token-authenticated callers.  We use the token-aware resolver
+        # to avoid bucketing every token-auth user under a shared "anonymous" id.
         # ------------------------------------------------------------------
         endpoint = request.path
-        actor_id = str(request.user.pk) if getattr(request, "user", None) and request.user.is_authenticated else "anonymous"
+        resolved = _resolve_user(request)
+        actor_id = str(resolved.pk) if resolved is not None else "anonymous"
 
         # ------------------------------------------------------------------
         # Cache hit?

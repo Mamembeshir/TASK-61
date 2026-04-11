@@ -10,9 +10,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import get_object_or_404
 
+from rest_framework import serializers
+
 from core.exceptions import ConflictError, UnprocessableEntity
 from core.models import AuditLog
-from core.pagination import CursorPagination
+from core.pagination import CursorPagination, paginate_list
 from iam.models import User, UserProfile, UserSiteAssignment
 from iam.permissions import IsAdmin
 from iam.admin_serializers import (
@@ -296,11 +298,17 @@ class CreateCourierView(APIView):
 # GET /api/v1/admin/sites/   (helper for role-assignment UI)
 # ---------------------------------------------------------------------------
 
+class _AdminSiteLookupSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField()
+
+    class Meta:
+        model = Site
+        fields = ["id", "name", "timezone"]
+
+
 class SiteListView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        sites = Site.objects.filter(tenant=request.user.tenant, is_active=True).values(
-            "id", "name", "timezone"
-        )
-        return Response(list(sites))
+        sites = Site.objects.filter(tenant=request.user.tenant, is_active=True)
+        return paginate_list(request, sites, _AdminSiteLookupSerializer, ordering="name")

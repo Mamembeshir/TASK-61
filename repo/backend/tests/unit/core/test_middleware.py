@@ -247,6 +247,72 @@ class TestIdempotencyMiddleware:
         mw(req)
         assert not IdempotencyRecord.objects.filter(key=key).exists()
 
+    def test_token_auth_users_scoped_separately(self):
+        """
+        Two token-authenticated users sending the same Idempotency-Key to the
+        same endpoint must each get their own cached record — the second user
+        must NOT receive the first user's cached response.
+
+        This exercises the token-aware actor resolver. TokenAuthentication is
+        a DRF auth class that runs INSIDE the view, so `request.user` is still
+        anonymous at middleware time; without the token-aware resolver both
+        users would collide under a shared "anonymous" actor_id.
+        """
+        from rest_framework.authtoken.models import Token
+
+        tenant = TenantFactory()
+        user_a = UserFactory(tenant=tenant, username="alice")
+        user_b = UserFactory(tenant=tenant, username="bob")
+        token_a, _ = Token.objects.get_or_create(user=user_a)
+        token_b, _ = Token.objects.get_or_create(user=user_b)
+
+        key = "shared-key-001"
+        endpoint = "/api/v1/assets/"
+
+        def get_response_a(_req):
+            return JsonResponse({"owner": "alice"}, status=201)
+
+        def get_response_b(_req):
+            return JsonResponse({"owner": "bob"}, status=201)
+
+        # Alice posts — request.user is anonymous mock (token auth is inside view)
+        req_a = _make_request(method="POST", path=endpoint, user=None)
+        req_a.META["HTTP_IDEMPOTENCY_KEY"] = key
+        req_a.META["HTTP_AUTHORIZATION"] = f"Token {token_a.key}"
+        resp_a = self._mw(get_response_a)(req_a)
+        assert resp_a.status_code == 201
+        assert json.loads(resp_a.content)["owner"] == "alice"
+
+        # Bob posts with the same key — must NOT get Alice's cached response.
+        req_b = _make_request(method="POST", path=endpoint, user=None)
+        req_b.META["HTTP_IDEMPOTENCY_KEY"] = key
+        req_b.META["HTTP_AUTHORIZATION"] = f"Token {token_b.key}"
+        resp_b = self._mw(get_response_b)(req_b)
+        assert resp_b.status_code == 201
+        assert json.loads(resp_b.content)["owner"] == "bob"
+        assert resp_b.get("X-Idempotency-Replayed") != "true"
+
+        # Two distinct records exist, scoped by actor_id.
+        records = IdempotencyRecord.objects.filter(key=key, endpoint=endpoint)
+        actor_ids = set(records.values_list("actor_id", flat=True))
+        assert actor_ids == {str(user_a.pk), str(user_b.pk)}
+
+        # Alice replaying her own key must hit her cached response, not Bob's.
+        req_a2 = _make_request(method="POST", path=endpoint, user=None)
+        req_a2.META["HTTP_IDEMPOTENCY_KEY"] = key
+        req_a2.META["HTTP_AUTHORIZATION"] = f"Token {token_a.key}"
+
+        call_count = {"n": 0}
+        def should_not_be_called(_req):
+            call_count["n"] += 1
+            return JsonResponse({"owner": "stranger"}, status=201)
+
+        resp_a2 = self._mw(should_not_be_called)(req_a2)
+        assert resp_a2.status_code == 201
+        assert json.loads(resp_a2.content)["owner"] == "alice"
+        assert resp_a2.get("X-Idempotency-Replayed") == "true"
+        assert call_count["n"] == 0
+
 
 # ===========================================================================
 # 3. TenantMiddleware
