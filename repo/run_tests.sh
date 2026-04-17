@@ -39,25 +39,58 @@ echo -e "${BLUE}          HarborOps Test Runner           ${NC}"
 echo -e "${BLUE}══════════════════════════════════════════${NC}"
 echo ""
 
+# ── Ensure services are up (no-op if already running locally) ────────────────
+# CI boots fresh containers; local devs typically have the stack already up.
+# `docker compose up -d` is idempotent in both cases.
+ensure_service_up() {
+  local service="$1"
+  $DC up -d "$service" >/dev/null 2>&1 || {
+    echo -e "${RED}Failed to start service: $service${NC}"
+    return 1
+  }
+}
+
+# Wait for the django container to finish migrations and be ready to accept
+# `pytest` calls.  We poll Django's management command once per second up to
+# 90s — this covers the cold-start cost of migrations + seed_demo_data on CI.
+wait_for_django() {
+  local deadline=$((SECONDS + 90))
+  while [ $SECONDS -lt $deadline ]; do
+    if $DC exec -T django python manage.py check --deploy >/dev/null 2>&1 \
+      || $DC exec -T django python -c "import django; django.setup()" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
 # ── Backend ──────────────────────────────────────────────────────────────────
 if [ "$RUN_BACKEND" = true ]; then
   echo -e "${BLUE}▶  Backend (pytest)${NC}"
   echo "──────────────────────────────────────────"
 
-  if [ "$COVERAGE" = true ]; then
-    PYTEST_CMD="pytest tests/ -v \
-      --cov=core --cov=iam --cov=tenants --cov=assets \
-      --cov=foodservice --cov=meetings --cov=integrations \
-      --cov-report=term-missing --cov-fail-under=80"
-  else
-    PYTEST_CMD="pytest tests/ -v"
-  fi
-
-  if $DC exec django sh -c "$PYTEST_CMD"; then
-    echo -e "\n${GREEN}✓  Backend tests passed${NC}\n"
-  else
-    echo -e "\n${RED}✗  Backend tests FAILED${NC}\n"
+  ensure_service_up django
+  echo "  Waiting for django to be ready..."
+  if ! wait_for_django; then
+    echo -e "${RED}  django did not become ready in time${NC}"
     BACKEND_FAILED=1
+  else
+    if [ "$COVERAGE" = true ]; then
+      PYTEST_CMD="pytest tests/ -v \
+        --cov=core --cov=iam --cov=tenants --cov=assets \
+        --cov=foodservice --cov=meetings --cov=integrations \
+        --cov-report=term-missing --cov-fail-under=80"
+    else
+      PYTEST_CMD="pytest tests/ -v"
+    fi
+
+    if $DC exec -T django sh -c "$PYTEST_CMD"; then
+      echo -e "\n${GREEN}✓  Backend tests passed${NC}\n"
+    else
+      echo -e "\n${RED}✗  Backend tests FAILED${NC}\n"
+      BACKEND_FAILED=1
+    fi
   fi
 fi
 
@@ -66,11 +99,15 @@ if [ "$RUN_FRONTEND" = true ]; then
   echo -e "${BLUE}▶  Frontend (vitest)${NC}"
   echo "──────────────────────────────────────────"
 
-  if $DC exec frontend sh -c "npm test -- --reporter=verbose 2>&1"; then
+  ensure_service_up frontend
+  # Give the frontend container a moment to finish `npm install` on cold boot
+  sleep 2
+
+  if $DC exec -T frontend sh -c "npm test -- --reporter=verbose 2>&1"; then
     echo -e "\n${GREEN}✓  Frontend tests passed${NC}\n"
   else
     EXIT=$?
-    if [ $EXIT -eq 1 ] && $DC exec frontend sh -c "npm test -- --reporter=verbose 2>&1" | grep -q "No test files found"; then
+    if [ $EXIT -eq 1 ] && $DC exec -T frontend sh -c "npm test -- --reporter=verbose 2>&1" | grep -q "No test files found"; then
       echo -e "${YELLOW}⚠  No frontend test files found — skipping${NC}\n"
     else
       echo -e "\n${RED}✗  Frontend tests FAILED${NC}\n"
