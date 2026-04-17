@@ -34,6 +34,21 @@ frontend/.env.local
 htmlcov/
 .pytest_cache/
 
+# Test artifacts
+# ── Playwright (E2E)
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright/.cache/
+playwright-report/
+test-results/
+# ── Vitest
+frontend/coverage/
+# ── pytest
+.cache/
+.tox/
+# ── Scratch / working dir used by CI for audit reports, trajectories, etc.
+.tmp/
+
 # IDE
 .vscode/
 .idea/

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # run_tests.sh — Run all backend and frontend tests.
 # Usage:
-#   ./run_tests.sh             # run both suites
+#   ./run_tests.sh             # run backend + frontend unit tests
 #   ./run_tests.sh --backend   # backend only
-#   ./run_tests.sh --frontend  # frontend only
+#   ./run_tests.sh --frontend  # frontend unit tests only
+#   ./run_tests.sh --e2e       # Playwright E2E tests (fully Dockerized)
 #   ./run_tests.sh --coverage  # backend with coverage report
 
 set -euo pipefail
@@ -20,12 +21,14 @@ NC='\033[0m'
 
 RUN_BACKEND=true
 RUN_FRONTEND=true
+RUN_E2E=false
 COVERAGE=false
 
 for arg in "$@"; do
   case $arg in
-    --backend)  RUN_FRONTEND=false ;;
-    --frontend) RUN_BACKEND=false ;;
+    --backend)  RUN_FRONTEND=false; RUN_E2E=false ;;
+    --frontend) RUN_BACKEND=false;  RUN_E2E=false ;;
+    --e2e)      RUN_BACKEND=false;  RUN_FRONTEND=false; RUN_E2E=true ;;
     --coverage) COVERAGE=true ;;
   esac
 done
@@ -76,6 +79,20 @@ if [ "$RUN_FRONTEND" = true ]; then
   fi
 fi
 
+# ── E2E (Playwright in Docker — runs against the frontend container) ──────────
+E2E_FAILED=0
+if [ "$RUN_E2E" = true ]; then
+  echo -e "${BLUE}▶  E2E (Playwright in Docker)${NC}"
+  echo "──────────────────────────────────────────"
+
+  if $DC --profile e2e run --rm playwright; then
+    echo -e "\n${GREEN}✓  E2E tests passed${NC}\n"
+  else
+    echo -e "\n${RED}✗  E2E tests FAILED${NC}\n"
+    E2E_FAILED=1
+  fi
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo -e "${BLUE}══════════════════════════════════════════${NC}"
 echo -e "${BLUE}                  Summary                 ${NC}"
@@ -97,7 +114,15 @@ if [ "$RUN_FRONTEND" = true ]; then
   fi
 fi
 
+if [ "$RUN_E2E" = true ]; then
+  if [ $E2E_FAILED -eq 0 ]; then
+    echo -e "  E2E:      ${GREEN}PASSED${NC}"
+  else
+    echo -e "  E2E:      ${RED}FAILED${NC}"
+  fi
+fi
+
 echo ""
 
-TOTAL_FAILED=$((BACKEND_FAILED + FRONTEND_FAILED))
+TOTAL_FAILED=$((BACKEND_FAILED + FRONTEND_FAILED + E2E_FAILED))
 exit $TOTAL_FAILED

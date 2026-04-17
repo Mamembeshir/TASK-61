@@ -267,3 +267,137 @@ class TestCreateCourier:
             format="json",
         )
         assert_status(resp, 409)
+
+
+# ---------------------------------------------------------------------------
+# User detail
+# ---------------------------------------------------------------------------
+
+class TestUserDetail:
+
+    def test_admin_can_retrieve_user_detail(
+        self, admin_client, staff_user, assert_status
+    ):
+        """GET /api/v1/admin/users/<id>/ returns full user detail for tenant."""
+        resp = admin_client.get(f"{USERS_URL}{staff_user.pk}/")
+        assert_status(resp, 200)
+        assert resp.data["id"] == str(staff_user.pk)
+        assert resp.data["username"] == staff_user.username
+
+    def test_staff_cannot_access_user_detail(
+        self, staff_client, staff_user, assert_status
+    ):
+        """Staff users cannot access the admin user-detail endpoint."""
+        resp = staff_client.get(f"{USERS_URL}{staff_user.pk}/")
+        assert_status(resp, 403)
+
+    def test_admin_cannot_retrieve_user_from_other_tenant(
+        self, admin_client, assert_status
+    ):
+        """Admin from tenant A cannot see user from tenant B → 404."""
+        from iam.factories import TenantFactory, UserFactory
+        other_tenant = TenantFactory()
+        other_user = UserFactory(tenant=other_tenant)
+        resp = admin_client.get(f"{USERS_URL}{other_user.pk}/")
+        assert_status(resp, 404)
+
+
+# ---------------------------------------------------------------------------
+# Review photo
+# ---------------------------------------------------------------------------
+
+class TestReviewPhoto:
+
+    def test_admin_can_approve_photo(
+        self, admin_client, pending_user_with_profile, assert_status
+    ):
+        """Admin approves photo → photo_id_review_status = APPROVED."""
+        resp = admin_client.post(
+            _review_url(pending_user_with_profile.pk),
+            {"decision": "APPROVED"},
+            format="json",
+        )
+        assert_status(resp, 200)
+        pending_user_with_profile.profile.refresh_from_db()
+        assert pending_user_with_profile.profile.photo_id_review_status == UserProfile.PhotoIdStatus.APPROVED
+
+    def test_admin_can_reject_photo(
+        self, admin_client, pending_user_with_profile, assert_status
+    ):
+        """Admin rejects photo → photo_id_review_status = REJECTED."""
+        resp = admin_client.post(
+            _review_url(pending_user_with_profile.pk),
+            {"decision": "REJECTED"},
+            format="json",
+        )
+        assert_status(resp, 200)
+        pending_user_with_profile.profile.refresh_from_db()
+        assert pending_user_with_profile.profile.photo_id_review_status == UserProfile.PhotoIdStatus.REJECTED
+
+    def test_review_photo_user_without_profile_returns_422(
+        self, admin_client, staff_user, assert_status
+    ):
+        """User has no profile → 422."""
+        resp = admin_client.post(
+            _review_url(staff_user.pk),
+            {"decision": "APPROVED"},
+            format="json",
+        )
+        assert_status(resp, 422)
+
+    def test_invalid_decision_returns_400(
+        self, admin_client, pending_user_with_profile, assert_status
+    ):
+        """Unknown decision value → 400 (serializer validation)."""
+        resp = admin_client.post(
+            _review_url(pending_user_with_profile.pk),
+            {"decision": "MAYBE"},
+            format="json",
+        )
+        assert_status(resp, 400)
+
+
+# ---------------------------------------------------------------------------
+# Admin sites list
+# ---------------------------------------------------------------------------
+
+ADMIN_SITES_URL = "/api/v1/admin/sites/"
+
+
+class TestAdminSitesList:
+
+    def test_admin_can_list_active_sites(self, admin_client, site, assert_status):
+        """Admin sees active sites for their tenant."""
+        resp = admin_client.get(ADMIN_SITES_URL)
+        assert_status(resp, 200)
+        assert "results" in resp.data
+        ids = [s["id"] for s in resp.data["results"]]
+        assert str(site.pk) in ids
+
+    def test_admin_does_not_see_inactive_sites(
+        self, admin_client, tenant, assert_status
+    ):
+        """Inactive sites are excluded from the list."""
+        from iam.factories import SiteFactory
+        SiteFactory(tenant=tenant, is_active=False, name="Inactive Site")
+        resp = admin_client.get(ADMIN_SITES_URL)
+        assert_status(resp, 200)
+        names = [s["name"] for s in resp.data["results"]]
+        assert "Inactive Site" not in names
+
+    def test_staff_cannot_list_admin_sites(self, staff_client, assert_status):
+        """Staff users cannot access /api/v1/admin/sites/."""
+        resp = staff_client.get(ADMIN_SITES_URL)
+        assert_status(resp, 403)
+
+    def test_response_shape_has_id_name_timezone(
+        self, admin_client, site, assert_status
+    ):
+        """Site objects include id, name, timezone fields."""
+        resp = admin_client.get(ADMIN_SITES_URL)
+        assert_status(resp, 200)
+        if resp.data["results"]:
+            s = resp.data["results"][0]
+            assert "id" in s
+            assert "name" in s
+            assert "timezone" in s

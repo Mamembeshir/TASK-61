@@ -426,3 +426,123 @@ class TestActivationModeMixingRejected:
         # v1 remains ACTIVE
         v1.refresh_from_db()
         assert v1.status == RecipeVersion.Status.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# 9. Recipe list
+# ---------------------------------------------------------------------------
+
+class TestRecipeList:
+    def test_list_returns_200(self, admin_client, assert_status):
+        """GET /api/v1/foodservice/recipes/ returns 200 with results."""
+        resp = admin_client.get(BASE)
+        assert_status(resp, 200)
+        assert "results" in resp.json()
+
+    def test_list_includes_created_recipe(self, admin_client, assert_status):
+        """A freshly created recipe appears in the list."""
+        admin_client.post(BASE, data=recipe_payload(name="List Test Recipe"), format="json")
+        resp = admin_client.get(BASE)
+        assert_status(resp, 200)
+        names = [r["name"] for r in resp.json()["results"]]
+        assert "List Test Recipe" in names
+
+    def test_courier_cannot_list_recipes(self, courier_client, assert_status):
+        resp = courier_client.get(BASE)
+        assert_status(resp, 403)
+
+
+# ---------------------------------------------------------------------------
+# 10. Recipe version detail
+# ---------------------------------------------------------------------------
+
+class TestRecipeVersionDetail:
+    def test_get_version_detail_returns_200(self, admin_client, assert_status):
+        """GET /api/v1/foodservice/recipes/:pk/versions/:vid/ returns version data."""
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        version = recipe.versions.first()
+
+        detail_resp = admin_client.get(f"{BASE}{recipe_id}/versions/{version.pk}/")
+        assert_status(detail_resp, 200)
+        data = detail_resp.json()
+        assert data["id"] == str(version.pk)
+        assert data["version_number"] == 1
+
+    def test_version_detail_includes_ingredients_and_steps(
+        self, admin_client, assert_status
+    ):
+        """Version detail includes nested ingredients and steps."""
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        version = recipe.versions.first()
+
+        detail_resp = admin_client.get(f"{BASE}{recipe_id}/versions/{version.pk}/")
+        assert_status(detail_resp, 200)
+        data = detail_resp.json()
+        assert len(data["ingredients"]) == 3
+        assert len(data["steps"]) == 2
+
+    def test_nonexistent_version_returns_404(self, admin_client, assert_status):
+        import uuid
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        detail_resp = admin_client.get(f"{BASE}{recipe_id}/versions/{uuid.uuid4()}/")
+        assert_status(detail_resp, 404)
+
+
+# ---------------------------------------------------------------------------
+# 11. Archive recipe version
+# ---------------------------------------------------------------------------
+
+class TestArchiveVersion:
+    def test_archive_active_version_returns_200(self, admin_client, assert_status):
+        """POST /api/v1/foodservice/recipes/:pk/versions/:vid/archive/ archives ACTIVE version."""
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        version = recipe.versions.first()
+
+        # Activate first
+        admin_client.post(f"{BASE}{recipe_id}/versions/{version.pk}/activate/", format="json")
+        version.refresh_from_db()
+        assert version.status == RecipeVersion.Status.ACTIVE
+
+        # Now archive
+        archive_resp = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{version.pk}/archive/",
+            format="json",
+        )
+        assert_status(archive_resp, 200)
+        version.refresh_from_db()
+        assert version.status == RecipeVersion.Status.ARCHIVED
+
+    def test_archive_draft_version_returns_422(self, admin_client, assert_status):
+        """Only ACTIVE versions can be archived — DRAFT → 422."""
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        version = recipe.versions.first()
+        assert version.status == RecipeVersion.Status.DRAFT
+
+        archive_resp = admin_client.post(
+            f"{BASE}{recipe_id}/versions/{version.pk}/archive/",
+            format="json",
+        )
+        assert_status(archive_resp, 422)
+
+    def test_staff_cannot_archive_version(self, staff_client, admin_client, assert_status):
+        """Staff users cannot archive recipe versions (admin-only)."""
+        resp = admin_client.post(BASE, data=recipe_payload(), format="json")
+        recipe_id = resp.json()["id"]
+        recipe = Recipe.objects.get(pk=recipe_id)
+        version = recipe.versions.first()
+        admin_client.post(f"{BASE}{recipe_id}/versions/{version.pk}/activate/", format="json")
+
+        archive_resp = staff_client.post(
+            f"{BASE}{recipe_id}/versions/{version.pk}/archive/",
+            format="json",
+        )
+        assert_status(archive_resp, 403)

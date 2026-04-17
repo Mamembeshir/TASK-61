@@ -1,197 +1,111 @@
 # HarborOps
 
-Multi-tenant operations management platform for higher-education institutions — asset tracking, foodservice management (recipes, menus), meetings, and integrations (alerts, webhooks).
+A multi-tenant operations management platform for higher-education institutions — asset ledger and bulk import, foodservice management (recipes, dishes, menus with versioning), meetings with agenda/minutes/resolutions/tasks, and outbound integrations (alerts, webhooks).
 
----
+## Architecture & Tech Stack
 
-## How to Run
-
-**One command starts the entire stack:**
-
-```bash
-docker compose up
-```
-
-That's it. On first boot the Django container will automatically:
-1. Wait for MySQL to be healthy
-2. Run all database migrations
-3. Seed the allergen reference table
-4. Seed Coastal University demo data (dev mode only)
-5. Start the API server
-
-> **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Compose plugin). No other local dependencies required.
-
----
-
-## Services
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| **React Frontend** | http://localhost:5173 | Main web UI (Vite dev server) |
-| **Django API** | http://localhost:8000 | REST API + Django admin |
-| **Django Admin** | http://localhost:8000/admin/ | Built-in admin interface |
-| **API Health** | http://localhost:8000/api/v1/core/health/ | Liveness/readiness probe |
-| **MySQL** | localhost:3306 | Database (harborops / harborops) |
-| **Redis** | localhost:6380 | Task queue & cache |
-
----
-
-## Verification
-
-### 1. Check all containers are running
-
-```bash
-docker compose ps
-```
-
-All services should show `Up` or `healthy`:
-
-```
-NAME                  STATUS
-repo-django-1         Up (healthy)
-repo-frontend-1       Up
-repo-mysql-1          Up (healthy)
-repo-redis-1          Up (healthy)
-repo-celery_worker-1  Up
-repo-celery_beat-1    Up
-```
-
-### 2. Hit the health endpoint
-
-```bash
-curl http://localhost:8000/api/v1/core/health/
-```
-
-Expected response:
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-04-10T08:00:00+00:00",
-  "database": "ok",
-  "redis": "ok"
-}
-```
-
-### 3. Open the frontend
-
-Navigate to **http://localhost:5173** in your browser.
-
-#### Seeded demo accounts
-
-All accounts share the same password: **`Demo@pass1!`**
-
-| Username          | Role    | Sites assigned             | Notes                              |
-|-------------------|---------|----------------------------|------------------------------------|
-| `admin.coastal`   | ADMIN   | *(all — tenant admin)*     | Django staff; full tenant access   |
-| `alice.staff`     | STAFF   | Main Campus, North Campus  |                                    |
-| `bob.staff`       | STAFF   | South Campus               |                                    |
-| `carlos.courier`  | COURIER | Main Campus                |                                    |
-| `diana.courier`   | COURIER | North Campus, South Campus |                                    |
-
-All five users belong to the **Coastal University** tenant and are seeded by
-`python manage.py seed_demo_data` (which runs automatically on first boot when
-`DJANGO_DEBUG=true`).
-
-### 4. Run the test suite
-
-```bash
-./run_tests.sh
-```
-
-Or backend only:
-
-```bash
-docker compose exec django pytest tests/ -q
-```
-
----
-
-## Environment Variables
-
-All variables have sensible defaults for local development — no `.env` file needed to get started. To customise, copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-# edit .env as needed
-docker compose up
-```
-
-Key variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DJANGO_SECRET_KEY` | `dev-secret-key-…` | Django secret (change in production!) |
-| `DJANGO_DEBUG` | `true` | Debug mode — also enables auto-seeding |
-| `DB_PASSWORD` | `harborops` | MySQL password |
-| `FIELD_ENCRYPTION_KEY` | *(built-in dev key when `DJANGO_DEBUG=true`)* | AES-256 key for encrypted PII fields. **Required** in production — startup fails loudly if `DJANGO_DEBUG=false` and it is unset. Generate with `python -c "import secrets, base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"` |
-| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
-
----
-
-## Development Commands
-
-```bash
-# View logs for a specific service
-docker compose logs -f django
-
-# Open a Django shell
-docker compose exec django python manage.py shell
-
-# Re-run migrations after model changes
-docker compose exec django python manage.py migrate
-
-# Re-seed demo data from scratch
-docker compose exec django python manage.py seed_demo_data --flush
-
-# Run backend tests with coverage
-docker compose exec django pytest tests/ --cov=. --cov-report=term-missing
-
-# Or use the Makefile
-make test
-make coverage
-make seed-demo-flush
-```
-
----
-
-## Architecture
-
-```
-Frontend (React 18 + Vite)  :5173
-        │
-        │  HTTP / REST (Token auth)
-        ▼
-Backend (Django 5 + DRF)    :8000
-        │
-   ┌────┴────┐
-   │         │
-MySQL :3306  Redis :6379
-             │
-        Celery Worker + Beat
-```
-
-Architecture, API reference, and business logic decisions are documented in
-inline code comments and Django model/view docstrings throughout the codebase.
-
----
+* **Frontend:** React 18, TypeScript, Vite, React Router 6, Axios, Recharts, Lucide icons
+* **Backend:** Django 5, Django REST Framework, DRF Token auth with HMAC-signed request integrity
+* **Database:** MySQL 8.0
+* **Task Queue & Cache:** Redis 7, Celery worker + beat scheduler
+* **Testing:** pytest (backend), Vitest + Testing Library (frontend unit), Playwright (E2E in Docker)
+* **Containerization:** Docker & Docker Compose (Required)
 
 ## Project Structure
 
+```text
+.
+├── backend/                    # Django project
+│   ├── core/                   # AuditLog, middleware, health check
+│   ├── iam/                    # Users, auth, account status machine
+│   ├── tenants/                # Tenant + Site models
+│   ├── assets/                 # Asset ledger + bulk import
+│   ├── foodservice/            # Recipes, dishes, menus (versioned)
+│   ├── meetings/               # Meetings, agenda, resolutions, tasks
+│   ├── integrations/           # Alerts, webhooks
+│   ├── analytics/              # Analytics summaries
+│   ├── tests/                  # pytest suite (backend API + integration)
+│   ├── Dockerfile              # (at docker/Dockerfile)
+│   └── manage.py
+├── frontend/                   # React + Vite app
+│   ├── src/
+│   ├── tests/unit/             # Vitest unit tests
+│   ├── tests/e2e/              # Playwright E2E specs
+│   └── playwright.config.ts
+├── docker/                     # Dockerfiles (django, frontend, playwright), MySQL init, nginx E2E proxy
+├── .env.example                # Example environment variables
+├── docker-compose.yml          # Multi-container orchestration
+├── run_tests.sh                # Standardized test execution script
+├── Makefile                    # Developer convenience commands
+└── README.md
 ```
-repo/
-├── backend/              Django project
-│   ├── core/             AuditLog, middleware, health check
-│   ├── iam/              Users, auth, account status machine
-│   ├── tenants/          Tenant, Site models
-│   ├── assets/           Asset ledger + bulk import
-│   ├── foodservice/      Recipes, dishes, menus
-│   ├── meetings/         Meetings, tasks, resolutions
-│   ├── integrations/     Alerts, webhooks
-│   ├── analytics/        Analytics summaries
-│   └── tests/            pytest test suite (515 tests)
-├── frontend/             React 18 + TypeScript + Vite
-├── docker/               Dockerfiles + MySQL init
-├── docker-compose.yml    Full stack definition
-├── run_tests.sh          One-command test runner
-└── Makefile              Developer convenience commands
+
+## Prerequisites
+
+To ensure a consistent environment, this project is designed to run entirely within containers. You must have the following installed:
+* [Docker](https://docs.docker.com/get-docker/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+
+No other local dependencies (Python, Node, MySQL, Redis) are required.
+
+## Running the Application
+
+1. **(Optional) Copy the example environment file:**
+   All variables have sensible defaults for local development, so this step is optional.
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Build and Start Containers:**
+   Use Docker Compose to build the images and spin up the entire stack in detached mode.
+   ```bash
+   docker compose up --build -d
+   ```
+   On first boot the `django` container will automatically wait for MySQL to be healthy, run migrations, seed the allergen reference table, and seed Coastal University demo data (dev mode only).
+
+3. **Access the App:**
+   * Frontend: `http://localhost:5173`
+   * Backend API: `http://localhost:8000/api/v1/`
+   * Django Admin: `http://localhost:8000/admin/`
+   * API Health Check: `http://localhost:8000/api/v1/core/health/`
+
+4. **Stop the Application:**
+   ```bash
+   docker compose down -v
+   ```
+
+## Testing
+
+All unit, integration, and E2E tests are executed via a single, standardized shell script. This script automatically handles the container orchestration required for each test tier.
+
+Make sure the script is executable, then run it:
+
+```bash
+chmod +x run_tests.sh
+./run_tests.sh
 ```
+
+The script supports scoping flags:
+
+```bash
+./run_tests.sh --backend   # pytest backend only
+./run_tests.sh --frontend  # vitest frontend unit tests only
+./run_tests.sh --e2e       # Playwright E2E tests (fully Dockerized)
+./run_tests.sh --coverage  # backend with coverage report (≥80% gate)
+```
+
+*Note: The `run_tests.sh` script outputs a standard exit code (`0` for success, non-zero for failure) to integrate smoothly with CI/CD validators.*
+
+## Seeded Credentials
+
+The database is pre-seeded with the following test users on startup (when `DJANGO_DEBUG=true`). All accounts share the same password: **`Demo@pass1!`**. Use these credentials to verify authentication and role-based access controls.
+
+| Role | Username | Password | Notes |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin.coastal` | `Demo@pass1!` | Full tenant access; Django staff. Lands on `/admin/users`. |
+| **Staff** | `alice.staff` | `Demo@pass1!` | Assigned to Main Campus + North Campus. Lands on `/dashboard`. |
+| **Staff** | `bob.staff` | `Demo@pass1!` | Assigned to South Campus. |
+| **Courier** | `carlos.courier` | `Demo@pass1!` | Assigned to Main Campus. Lands on `/courier`. |
+| **Courier** | `diana.courier` | `Demo@pass1!` | Assigned to North + South Campus. |
+
+All five users belong to the **Coastal University** tenant and are seeded by the Django management command `python manage.py seed_demo_data`, which runs automatically on first boot in dev mode.

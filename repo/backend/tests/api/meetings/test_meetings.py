@@ -893,3 +893,300 @@ class TestMyTasksView:
         assert_status(resp, 200)
         ids = [t["id"] for t in resp.json()["results"]]
         assert admin_task_id not in ids
+
+
+# ---------------------------------------------------------------------------
+# 13. Meeting detail (GET /api/v1/meetings/meetings/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestMeetingDetail:
+
+    def test_admin_can_get_meeting_detail(
+        self, admin_client, meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{meeting.pk}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        assert data["id"] == str(meeting.pk)
+        assert data["title"] == "Board Meeting"
+
+    def test_meeting_detail_includes_status(
+        self, admin_client, meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{meeting.pk}/")
+        assert_status(resp, 200)
+        assert resp.json()["status"] == "DRAFT"
+
+    def test_nonexistent_meeting_returns_404(
+        self, admin_client, assert_status
+    ):
+        import uuid
+        resp = admin_client.get(f"{BASE}{uuid.uuid4()}/")
+        assert_status(resp, 404)
+
+    def test_courier_cannot_get_meeting_detail(
+        self, courier_client, meeting, assert_status
+    ):
+        resp = courier_client.get(f"{BASE}{meeting.pk}/")
+        assert_status(resp, 403)
+
+
+# ---------------------------------------------------------------------------
+# 14. Agenda list (GET /api/v1/meetings/meetings/:pk/agenda/)
+# ---------------------------------------------------------------------------
+
+class TestAgendaList:
+
+    def test_agenda_list_returns_200(
+        self, admin_client, meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{meeting.pk}/agenda/")
+        assert_status(resp, 200)
+        assert "results" in resp.json()
+
+    def test_agenda_list_empty_before_items_added(
+        self, admin_client, meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{meeting.pk}/agenda/")
+        assert_status(resp, 200)
+        assert resp.json()["results"] == []
+
+    def test_agenda_list_includes_added_item(
+        self, admin_client, meeting, assert_status
+    ):
+        admin_client.post(
+            f"{BASE}{meeting.pk}/agenda/",
+            data={"title": "Item A", "description": ""},
+            format="json",
+        )
+        resp = admin_client.get(f"{BASE}{meeting.pk}/agenda/")
+        assert_status(resp, 200)
+        titles = [i["title"] for i in resp.json()["results"]]
+        assert "Item A" in titles
+
+
+# ---------------------------------------------------------------------------
+# 15. Agenda item detail (GET /api/v1/meetings/meetings/:pk/agenda/:item_pk/)
+# ---------------------------------------------------------------------------
+
+class TestAgendaItemDetail:
+
+    def test_get_agenda_item_detail_returns_200(
+        self, admin_client, meeting, assert_status
+    ):
+        post_resp = admin_client.post(
+            f"{BASE}{meeting.pk}/agenda/",
+            data={"title": "Detail Item", "description": "Some context"},
+            format="json",
+        )
+        assert_status(post_resp, 201)
+        item_id = post_resp.json()["id"]
+
+        resp = admin_client.get(f"{BASE}{meeting.pk}/agenda/{item_id}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        assert data["id"] == item_id
+        assert data["title"] == "Detail Item"
+
+    def test_agenda_item_detail_nonexistent_returns_404(
+        self, admin_client, meeting, assert_status
+    ):
+        import uuid
+        resp = admin_client.get(f"{BASE}{meeting.pk}/agenda/{uuid.uuid4()}/")
+        assert_status(resp, 404)
+
+
+# ---------------------------------------------------------------------------
+# 16. Attendance list (GET /api/v1/meetings/meetings/:pk/attendance/)
+# ---------------------------------------------------------------------------
+
+class TestAttendanceList:
+
+    def test_attendance_list_returns_200(
+        self, admin_client, inprogress_meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{inprogress_meeting.pk}/attendance/")
+        assert_status(resp, 200)
+        assert "results" in resp.json()
+
+    def test_attendance_list_empty_before_records(
+        self, admin_client, scheduled_meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{scheduled_meeting.pk}/attendance/")
+        assert_status(resp, 200)
+        assert resp.json()["results"] == []
+
+    def test_attendance_list_includes_recorded_attendance(
+        self, admin_client, staff_user, inprogress_meeting, assert_status
+    ):
+        admin_client.post(
+            f"{BASE}{inprogress_meeting.pk}/attendance/",
+            data={"user_id": str(staff_user.pk), "method": "IN_PERSON"},
+            format="json",
+        )
+        resp = admin_client.get(f"{BASE}{inprogress_meeting.pk}/attendance/")
+        assert_status(resp, 200)
+        user_ids = [a["user_id"] for a in resp.json()["results"]]
+        assert str(staff_user.pk) in user_ids
+
+
+# ---------------------------------------------------------------------------
+# 17. Resolutions list (GET /api/v1/meetings/meetings/:pk/resolutions/)
+# ---------------------------------------------------------------------------
+
+class TestResolutionList:
+
+    def test_resolutions_list_returns_200(
+        self, admin_client, inprogress_meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{inprogress_meeting.pk}/resolutions/")
+        assert_status(resp, 200)
+        assert "results" in resp.json()
+
+    def test_resolutions_list_empty_before_creation(
+        self, admin_client, inprogress_meeting, assert_status
+    ):
+        resp = admin_client.get(f"{BASE}{inprogress_meeting.pk}/resolutions/")
+        assert_status(resp, 200)
+        assert resp.json()["results"] == []
+
+    def test_resolutions_list_includes_created_resolution(
+        self, admin_client, inprogress_meeting, assert_status
+    ):
+        admin_client.post(
+            f"{BASE}{inprogress_meeting.pk}/resolutions/",
+            data={"text": "We resolve to improve harbour safety."},
+            format="json",
+        )
+        resp = admin_client.get(f"{BASE}{inprogress_meeting.pk}/resolutions/")
+        assert_status(resp, 200)
+        texts = [r["text"] for r in resp.json()["results"]]
+        assert "We resolve to improve harbour safety." in texts
+
+
+# ---------------------------------------------------------------------------
+# 18. Resolution patch (PATCH /api/v1/meetings/resolutions/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestResolutionPatch:
+
+    def test_admin_can_patch_resolution_text(
+        self, admin_client, resolution, assert_status
+    ):
+        resp = admin_client.patch(
+            f"/api/v1/meetings/resolutions/{resolution.pk}/",
+            data={"text": "Updated resolution text for better clarity."},
+            format="json",
+        )
+        assert_status(resp, 200)
+        resolution.refresh_from_db()
+        assert resolution.text == "Updated resolution text for better clarity."
+
+    def test_patch_resolution_empty_text_returns_422(
+        self, admin_client, resolution, assert_status
+    ):
+        resp = admin_client.patch(
+            f"/api/v1/meetings/resolutions/{resolution.pk}/",
+            data={"text": ""},
+            format="json",
+        )
+        assert_status(resp, 422)
+
+    def test_courier_cannot_patch_resolution(
+        self, courier_client, resolution, assert_status
+    ):
+        resp = courier_client.patch(
+            f"/api/v1/meetings/resolutions/{resolution.pk}/",
+            data={"text": "Courier trying to patch."},
+            format="json",
+        )
+        assert_status(resp, 403)
+
+
+# ---------------------------------------------------------------------------
+# 19. Meeting update (PATCH /api/v1/meetings/meetings/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestMeetingUpdate:
+
+    def test_admin_can_patch_title_on_draft_meeting(
+        self, admin_client, meeting, assert_status
+    ):
+        resp = admin_client.patch(
+            f"{BASE}{meeting.pk}/",
+            data={"title": "Revised Board Meeting"},
+            format="json",
+        )
+        assert_status(resp, 200)
+        meeting.refresh_from_db()
+        assert meeting.title == "Revised Board Meeting"
+
+    def test_admin_can_patch_scheduled_at_on_draft_meeting(
+        self, admin_client, meeting, assert_status
+    ):
+        new_time = "2026-09-15T14:00:00Z"
+        resp = admin_client.patch(
+            f"{BASE}{meeting.pk}/",
+            data={"scheduled_at": new_time},
+            format="json",
+        )
+        assert_status(resp, 200)
+        assert resp.json()["scheduled_at"].startswith("2026-09-15")
+
+    def test_patch_nonexistent_meeting_returns_404(
+        self, admin_client, assert_status
+    ):
+        resp = admin_client.patch(
+            f"{BASE}00000000-0000-0000-0000-000000000000/",
+            data={"title": "Ghost meeting"},
+            format="json",
+        )
+        assert_status(resp, 404)
+
+    def test_courier_cannot_patch_meeting(
+        self, courier_client, meeting, assert_status
+    ):
+        resp = courier_client.patch(
+            f"{BASE}{meeting.pk}/",
+            data={"title": "Courier override"},
+            format="json",
+        )
+        assert_status(resp, 403)
+
+
+
+# ---------------------------------------------------------------------------
+# 20. Meeting delete (DELETE /api/v1/meetings/meetings/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestMeetingDelete:
+
+    def test_admin_can_delete_draft_meeting(
+        self, admin_client, meeting, assert_status
+    ):
+        pk = meeting.pk
+        resp = admin_client.delete(f"{BASE}{pk}/")
+        assert_status(resp, 204)
+        assert not Meeting.objects.filter(pk=pk).exists()
+
+    def test_delete_nonexistent_meeting_returns_404(
+        self, admin_client, assert_status
+    ):
+        resp = admin_client.delete(
+            f"{BASE}00000000-0000-0000-0000-000000000000/"
+        )
+        assert_status(resp, 404)
+
+    def test_courier_cannot_delete_meeting(
+        self, courier_client, meeting, assert_status
+    ):
+        resp = courier_client.delete(f"{BASE}{meeting.pk}/")
+        assert_status(resp, 403)
+        assert Meeting.objects.filter(pk=meeting.pk).exists()
+
+    def test_cannot_delete_inprogress_meeting(
+        self, admin_client, inprogress_meeting, assert_status
+    ):
+        resp = admin_client.delete(f"{BASE}{inprogress_meeting.pk}/")
+        # Business rule: active meetings may not be hard-deleted; expect 422 or 409
+        assert resp.status_code in (409, 422)

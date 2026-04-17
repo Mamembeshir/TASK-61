@@ -147,13 +147,64 @@ services:
       - ./frontend:/app
       - /app/node_modules        # keep container node_modules isolated
     environment:
-      # VITE_API_TARGET is read by vite.config.ts at dev-server startup to set
-      # the proxy target. Inside Docker, Django is reachable via its service name.
       VITE_API_TARGET: http://django:8000
     depends_on:
       - django
+
+  # ---------------------------------------------------------------------------
+  # Playwright E2E (docker compose run --rm playwright)
+  # Uses node:20-slim (~70 MB) instead of the 1.8 GB playwright image.
+  # Chromium binary is cached in a named volume so it only downloads once.
+  # The wait loop inside the command polls frontend:5173 before running tests,
+  # so there is no healthcheck dependency that can fail prematurely.
+  # ---------------------------------------------------------------------------
+  # Thin nginx proxy for E2E — rewrites Host: frontend → Host: localhost
+  # so Vite's host-validation check (added in 5.3.x) never blocks requests.
+  nginx-e2e:
+    image: nginx:alpine
+    volumes:
+      - ./docker/nginx-e2e.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    profiles:
+      - e2e
+
+  playwright:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.playwright
+    working_dir: /app
+    volumes:
+      - ./frontend/tests/e2e:/app/tests/e2e:ro
+      - ./frontend/playwright.config.ts:/app/playwright.config.ts:ro
+      - ./frontend/test-results:/app/test-results
+      - playwright_cache:/root/.cache/ms-playwright
+    command: >
+      sh -c "
+        npx playwright install chromium &&
+        echo 'Waiting for app...' &&
+        until node -e \"
+          const h = require('http');
+          h.get('http://nginx-e2e', r => process.exit(r.statusCode < 500 ? 0 : 1))
+           .on('error', () => process.exit(1));
+        \" 2>/dev/null; do
+          echo '  not ready, retrying in 3s...';
+          sleep 3;
+        done &&
+        echo 'App ready — running tests' &&
+        npx playwright test
+      "
+    environment:
+      BASE_URL: http://nginx-e2e
+      CI: "true"
+    depends_on:
+      - nginx-e2e
+    profiles:
+      - e2e
+
 
 volumes:
   mysql_data:
   redis_data:
   uploads:
+  playwright_cache:  # Chromium binary — downloaded once, reused across runs

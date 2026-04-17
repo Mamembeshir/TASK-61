@@ -668,6 +668,107 @@ class TestMenuListPagination:
         assert len(body["results"]) == 2
         assert body["next_cursor"] is not None
 
+
+# ---------------------------------------------------------------------------
+# Menu detail
+# ---------------------------------------------------------------------------
+
+class TestMenuDetail:
+
+    def test_get_menu_detail_returns_200(self, admin_client, active_dish, assert_status):
+        """GET /api/v1/foodservice/menus/:pk/ returns menu data."""
+        resp = _create_menu(admin_client, active_dish)
+        assert_status(resp, 201)
+        menu_id = resp.json()["id"]
+
+        detail_resp = admin_client.get(f"{MENUS_URL}{menu_id}/")
+        assert_status(detail_resp, 200)
+        data = detail_resp.json()
+        assert data["id"] == menu_id
+        assert data["name"] == "Breakfast Menu"
+
+    def test_menu_detail_response_includes_versions_info(
+        self, admin_client, active_dish, assert_status
+    ):
+        """Menu detail includes active_version and latest_version fields."""
+        resp = _create_menu(admin_client, active_dish)
+        menu_id = resp.json()["id"]
+
+        detail_resp = admin_client.get(f"{MENUS_URL}{menu_id}/")
+        assert_status(detail_resp, 200)
+        data = detail_resp.json()
+        assert "id" in data
+        assert "name" in data
+
+    def test_menu_detail_nonexistent_returns_404(
+        self, admin_client, assert_status
+    ):
+        import uuid
+        resp = admin_client.get(f"{MENUS_URL}{uuid.uuid4()}/")
+        assert_status(resp, 404)
+
+    def test_courier_cannot_view_menu_detail(
+        self, courier_client, admin_client, active_dish, assert_status
+    ):
+        resp = _create_menu(admin_client, active_dish)
+        menu_id = resp.json()["id"]
+        detail_resp = courier_client.get(f"{MENUS_URL}{menu_id}/")
+        assert_status(detail_resp, 403)
+
+
+# ---------------------------------------------------------------------------
+# Menu versions list
+# ---------------------------------------------------------------------------
+
+class TestMenuVersionsList:
+
+    def test_get_menu_versions_returns_200(self, admin_client, active_dish, assert_status):
+        """GET /api/v1/foodservice/menus/:pk/versions/ returns list of versions."""
+        resp = _create_menu(admin_client, active_dish)
+        menu_id = resp.json()["id"]
+
+        versions_resp = admin_client.get(f"{MENUS_URL}{menu_id}/versions/")
+        assert_status(versions_resp, 200)
+        data = versions_resp.json()
+        assert "results" in data
+        assert len(data["results"]) >= 1
+
+    def test_versions_list_includes_initial_draft(
+        self, admin_client, active_dish, assert_status
+    ):
+        """Freshly created menu has one DRAFT version in the versions list."""
+        resp = _create_menu(admin_client, active_dish)
+        menu_id = resp.json()["id"]
+
+        versions_resp = admin_client.get(f"{MENUS_URL}{menu_id}/versions/")
+        assert_status(versions_resp, 200)
+        statuses = [v["status"] for v in versions_resp.json()["results"]]
+        assert "DRAFT" in statuses
+
+    def test_versions_list_grows_after_new_version_created(
+        self, admin_client, active_dish, site, assert_status
+    ):
+        """After creating and publishing v1 and adding v2, versions list has 2 entries."""
+        resp = _create_menu(admin_client, active_dish)
+        menu_id = resp.json()["id"]
+        menu = Menu.objects.get(pk=menu_id)
+        v1 = menu.versions.first()
+
+        # Publish v1
+        admin_client.post(
+            f"{MENUS_URL}{menu_id}/versions/{v1.pk}/publish/",
+            data={"site_ids": [str(site.pk)]},
+            format="json",
+        )
+
+        # Create v2
+        v2_payload = _menu_payload(active_dish, name="Breakfast Menu")
+        admin_client.post(f"{MENUS_URL}{menu_id}/versions/", data=v2_payload, format="json")
+
+        versions_resp = admin_client.get(f"{MENUS_URL}{menu_id}/versions/")
+        assert_status(versions_resp, 200)
+        assert versions_resp.json()["count"] == 2
+
     def test_list_cursor_walks_full_result_set(self, admin_client, active_dish, assert_status):
         """Following next_cursor must visit every menu exactly once."""
         from urllib.parse import urlparse

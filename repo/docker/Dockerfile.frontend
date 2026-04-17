@@ -11,4 +11,6 @@ COPY . .
 EXPOSE 5173
 
 # host: "0.0.0.0" is set in vite.config.ts so the port is reachable from the host
-CMD ["npm", "run", "dev"]
+# Run npm install at startup so the anonymous node_modules volume is always
+# in sync with package.json, even after packages are added without rebuilding.
+CMD ["sh", "-c", "npm install && npm run dev"]

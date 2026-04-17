@@ -467,3 +467,128 @@ class TestWebhookDispatch:
 
         after_count = WebhookDeliveryAttempt.objects.count()
         assert after_count == before_count
+
+
+# ---------------------------------------------------------------------------
+# 7. Alert detail (GET /api/v1/integrations/alerts/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestAlertDetail:
+
+    def test_admin_can_get_alert_detail(
+        self, admin_client, alert, assert_status
+    ):
+        resp = admin_client.get(f"{ALERTS_BASE}{alert.pk}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        assert data["id"] == str(alert.pk)
+        assert data["status"] == Alert.Status.OPEN
+
+    def test_alert_detail_response_shape(
+        self, admin_client, alert, assert_status
+    ):
+        resp = admin_client.get(f"{ALERTS_BASE}{alert.pk}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        for field in ("id", "alert_type", "severity", "message", "status"):
+            assert field in data
+
+    def test_nonexistent_alert_returns_404(
+        self, admin_client, assert_status
+    ):
+        import uuid
+        resp = admin_client.get(f"{ALERTS_BASE}{uuid.uuid4()}/")
+        assert_status(resp, 404)
+
+    def test_courier_cannot_get_alert_detail(
+        self, courier_client, alert, assert_status
+    ):
+        resp = courier_client.get(f"{ALERTS_BASE}{alert.pk}/")
+        assert_status(resp, 403)
+
+    def test_staff_can_get_alert_assigned_to_them(
+        self, admin_client, staff_client, tenant, admin_user, staff_user, assert_status
+    ):
+        a = Alert.objects.create(
+            tenant=tenant,
+            alert_type=Alert.AlertType.IMPORT_FAILURE,
+            severity=Alert.Severity.WARNING,
+            message="Assigned to staff",
+        )
+        a.transition(Alert.Status.ACKNOWLEDGED, admin_user)
+        a.transition(Alert.Status.ASSIGNED, admin_user, assigned_to=staff_user)
+
+        resp = staff_client.get(f"{ALERTS_BASE}{a.pk}/")
+        assert_status(resp, 200)
+        assert resp.json()["id"] == str(a.pk)
+
+
+# ---------------------------------------------------------------------------
+# 8. Webhook list (GET /api/v1/integrations/webhooks/)
+# ---------------------------------------------------------------------------
+
+class TestWebhookList:
+
+    def test_admin_can_list_webhooks(
+        self, admin_client, webhook_endpoint, assert_status
+    ):
+        resp = admin_client.get(WEBHOOKS_BASE)
+        assert_status(resp, 200)
+        assert "results" in resp.json()
+
+    def test_list_includes_created_webhook(
+        self, admin_client, webhook_endpoint, assert_status
+    ):
+        resp = admin_client.get(WEBHOOKS_BASE)
+        assert_status(resp, 200)
+        ids = [w["id"] for w in resp.json()["results"]]
+        assert str(webhook_endpoint.pk) in ids
+
+    def test_list_empty_when_no_webhooks(self, admin_client, assert_status):
+        resp = admin_client.get(WEBHOOKS_BASE)
+        assert_status(resp, 200)
+        assert resp.json()["results"] == []
+
+    def test_staff_cannot_list_webhooks(
+        self, staff_client, assert_status
+    ):
+        resp = staff_client.get(WEBHOOKS_BASE)
+        assert_status(resp, 403)
+
+
+# ---------------------------------------------------------------------------
+# 9. Webhook detail (GET /api/v1/integrations/webhooks/:pk/)
+# ---------------------------------------------------------------------------
+
+class TestWebhookDetail:
+
+    def test_admin_can_get_webhook_detail(
+        self, admin_client, webhook_endpoint, assert_status
+    ):
+        resp = admin_client.get(f"{WEBHOOKS_BASE}{webhook_endpoint.pk}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        assert data["id"] == str(webhook_endpoint.pk)
+        assert data["url"] == webhook_endpoint.url
+
+    def test_webhook_detail_response_shape(
+        self, admin_client, webhook_endpoint, assert_status
+    ):
+        resp = admin_client.get(f"{WEBHOOKS_BASE}{webhook_endpoint.pk}/")
+        assert_status(resp, 200)
+        data = resp.json()
+        for field in ("id", "url", "is_active", "events"):
+            assert field in data
+
+    def test_nonexistent_webhook_returns_404(
+        self, admin_client, assert_status
+    ):
+        import uuid
+        resp = admin_client.get(f"{WEBHOOKS_BASE}{uuid.uuid4()}/")
+        assert_status(resp, 404)
+
+    def test_staff_cannot_get_webhook_detail(
+        self, staff_client, webhook_endpoint, assert_status
+    ):
+        resp = staff_client.get(f"{WEBHOOKS_BASE}{webhook_endpoint.pk}/")
+        assert_status(resp, 403)

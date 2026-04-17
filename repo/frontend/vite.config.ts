@@ -16,6 +16,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",   // bind on all interfaces so Docker port mapping works
     port: parseInt(process.env.PORT ?? "5173", 10),
+    allowedHosts: true,  // allow any host (needed for Docker service-name access in E2E)
     proxy: {
       // Proxy API calls to Django
       "/api": {
@@ -26,7 +27,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./tests/setup.ts"],
     globals: true,
+    include: ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
   },
 });
